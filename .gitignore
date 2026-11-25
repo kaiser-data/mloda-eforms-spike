@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+# fetched by src/fetch_data.py; notices hold officers' contact details, so they stay out of git
+data/xml/
+data/fields.json
+data/search.json

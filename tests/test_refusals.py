@@ -53,3 +53,12 @@ def test_refuses_to_sum_mixed_currencies(tmp_path):
     t = t.set_column(t.column_names.index("tender_lots~value"), "tender_lots~value", pa.array([1.0, 2.0]))
     with pytest.raises(ValueError, match="mixed currencies"):
         m.stated_total(t)
+
+
+def test_gives_no_total_when_no_lot_states_a_value(tmp_path):
+    t = _run(_dossier(tmp_path))
+    t = t.set_column(t.column_names.index("tender_lots~value"), "tender_lots~value",
+                     pa.array([None] * t.num_rows, pa.float64()))
+    out = m.stated_total(t)
+    assert out.startswith("no total")
+    assert "0 " not in out.split(":")[0]

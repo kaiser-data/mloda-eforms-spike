@@ -89,6 +89,8 @@ def stated_total(t: pa.Table) -> str:
     if len(set(cur)) > 1:
         raise ValueError(f"refused: mixed currencies {sorted(set(cur))}")
     vals = [v for v in t.column(f"{TENDER_LOTS}~value").to_pylist() if v is not None]
+    if not vals:
+        return f"no total: none of the {t.num_rows} lots states a value"
     return f"{sum(vals):,.0f} {cur[0] if cur else ''} over {len(vals)} of {t.num_rows} lots (the other {t.num_rows - len(vals)} state no value and are not counted as 0)"
 
 

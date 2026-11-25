@@ -38,6 +38,7 @@ def search(procedure_id: str) -> list[dict]:
 
 
 def resolve(data: Path) -> list[dict]:
+    """One level, through the TED search API (how the committed data/changes.json was made)."""
     rows = []
     for f in sorted((data / "xml").glob("*.xml")):
         root = ET.parse(f).getroot()
@@ -58,6 +59,74 @@ def resolve(data: Path) -> list[dict]:
             "status": "resolved" if len(match) == 1 else ("ambiguous" if match else "not_found"),
         })
         time.sleep(1)
+    return rows
+
+
+def _identity(raw: bytes) -> tuple[str | None, str | None, str | None]:
+    """(own key = BT-701 + "-" + version, BT-758 it replaces, procedure id) of one notice."""
+    root = ET.fromstring(raw)  # nosec B314 - notices from TED or a local archive
+    nid = (root.findtext("cbc:ID[@schemeName='notice-id']", default="", namespaces=NS) or "").strip()
+    ver = (root.findtext("cbc:VersionID", default="", namespaces=NS) or "").strip()
+    rep = (root.findtext(".//efbc:ChangedNoticeIdentifier", default="", namespaces=NS) or "").strip()
+    proc = (root.findtext("cbc:ContractFolderID", default="", namespaces=NS) or "").strip()
+    return (f"{nid}-{ver}" if nid and ver else None), (rep or None), (proc or None)
+
+
+def archive_lookup(archive: Path):
+    """A lookup over a local folder of notices (offline tests, or a mirror of earlier fetches)."""
+    index = {}
+    for p in sorted(archive.glob("*.xml")):
+        key, _, _ = _identity(p.read_bytes())
+        if key:
+            index[key] = (p.stem, p.read_bytes())
+    return lambda procedure_id, key: index.get(key)
+
+
+def resolve_chains(data: Path, lookup, max_depth: int = 50) -> list[dict]:
+    """Follow BT-758 from every notice in data/xml back through all predecessors.
+
+    `lookup(procedure_id, key)` returns (name, xml bytes) or None. Found predecessors are saved to
+    data/originals/; each link is a row in data/changes.json. Missing links are reported, cycles refused.
+    Running it again on the same data gives the same result.
+    """
+    (data / "originals").mkdir(exist_ok=True)
+    known = {}  # key -> name, for everything already on disk
+    todo = []
+    for folder in (data / "xml", data / "originals"):
+        for p in sorted(folder.glob("*.xml")):
+            key, rep, proc = _identity(p.read_bytes())
+            if key:
+                known[key] = p.stem
+            if rep:
+                todo.append((p.stem, rep, proc, 0))
+    rows, seen = [], set()
+    while todo:
+        name, rep, proc, depth = todo.pop(0)
+        if (name, rep) in seen:
+            continue
+        seen.add((name, rep))
+        if depth > max_depth:
+            raise RuntimeError(f"refused: correction chain from {name} is longer than {max_depth} (cycle?)")
+        if rep in known:
+            target = known[rep]
+            status = "resolved"
+        else:
+            hit = lookup(proc, rep)
+            if hit is None:
+                rows.append({"change_notice": name, "bt_758": rep, "replaces": None, "status": "not_found"})
+                continue
+            target, raw = hit
+            (data / "originals" / f"{target}.xml").write_bytes(raw)
+            known[rep] = target
+            status = "resolved"
+            _, nxt, nproc = _identity(raw)
+            if nxt:
+                todo.append((target, nxt, nproc, depth + 1))
+        if target == name:
+            raise RuntimeError(f"refused: {name} names itself in BT-758")
+        rows.append({"change_notice": name, "bt_758": rep, "replaces": target, "status": status})
+    rows.sort(key=lambda r: (r["change_notice"], r["bt_758"]))
+    (data / "changes.json").write_text(json.dumps(rows, indent=1))
     return rows
 
 

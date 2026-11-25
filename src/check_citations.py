@@ -1,4 +1,7 @@
-"""Re-resolve every citation the reader emits with lxml (an independent XPath engine)."""
+"""Re-resolve every citation the reader emits with lxml (an independent XPath engine).
+
+Reads the same documents as the mloda run: data/xml plus data/originals.
+"""
 import sys
 from pathlib import Path
 
@@ -8,14 +11,16 @@ sys.path.insert(0, str(Path(__file__).parent))
 import eforms_lots as e
 
 folder = Path(sys.argv[1])
-rows, refused = e.read_folder(folder / "xml", folder / "fields.json")
+rows, refused = e.read_folder(folder / "xml", folder / "fields.json", folder / "originals")
+if refused:
+    sys.exit(f"refused: {refused[0]}")
 ok = bad = 0
 for r in rows:
     for cite, expect in [(r["cite_deadline"], r["deadline"]), (r["cite_value"], r["value"])]:
         if cite is None:
             continue
-        notice, xpath = cite.split(" ")[0], cite.split(" @ ")[1]
-        got = etree.parse(str(folder / "xml" / f"{notice}.xml")).xpath(xpath, namespaces=e.NS)
+        xpath = cite.split(" @ ")[1]
+        got = etree.parse(r["_path"]).xpath(xpath, namespaces=e.NS)  # the file this row was read from
         val = got[0].text.strip() if got else None
         match = val is not None and (val[:10] == expect if isinstance(expect, str) else float(val) == expect)
         ok += match

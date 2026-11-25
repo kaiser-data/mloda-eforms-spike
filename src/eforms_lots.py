@@ -24,7 +24,7 @@ NOTICE_FIELDS = ["BT-04-notice", "BT-05(a)-notice", "BT-757-notice", "BT-758-not
 
 COLUMNS = [
     "notice", "lot", "title", "deadline", "cpv", "nuts", "value", "currency", "value_scope",
-    "procedure_id", "issue_date", "is_change_notice", "superseded_by",
+    "procedure_id", "issue_date", "is_change_notice", "superseded_by", "version_status",
     "cite_deadline", "cite_value", "sdk_version", "file_sha256",
 ]
 
@@ -97,6 +97,7 @@ def read_notice(path: Path, xpaths: dict[str, str]) -> list[dict]:
             "issue_date": meta["BT-05(a)-notice"][0].text.strip()[:10] if meta["BT-05(a)-notice"] else None,
             "is_change_notice": bool(meta["BT-758-notice"]),
             "superseded_by": None,
+            "version_status": None,
             "cite_deadline": (
                 f"{notice} {lot_id} BT-131(d)-Lot @ {lot_path}"
                 f"{xpaths['BT-131(d)-Lot'].removeprefix(LOT_PREFIX)}" if dl else None
@@ -105,37 +106,91 @@ def read_notice(path: Path, xpaths: dict[str, str]) -> list[dict]:
             "sdk_version": sdk,
             "file_sha256": sha,
             "_key": f"{nid}-{ver}" if nid and ver else None,
+            "_path": str(path),
+            "_sha_full": hashlib.sha256(raw).hexdigest(),
             "_replaces": meta["BT-758-notice"][0].text.strip() if meta["BT-758-notice"] else None,
         })
     return rows
 
 
 def mark_superseded(rows: list[dict]) -> None:
-    """A notice is superseded only when another notice in the folder names it in BT-758.
+    """Version status from exact BT-758 links only. No guessing from dates or procedure ids.
 
-    BT-758 is the changed notice's identifier (BT-701) plus "-" and its version, so the
-    link is exact. No guessing from dates or procedure ids.
+    BT-758 is the changed notice's identifier (BT-701) plus "-" and its version.
+    - superseded: another loaded notice names this one in BT-758
+    - conflict: two different loaded notices both claim to replace this one
+    - unresolved: this is a change notice, but the notice it replaces isn't loaded
+    - current_in_snapshot: nothing loaded replaces it (that is all a snapshot can say)
     """
-    replaced_by = {r["_replaces"]: r["notice"] for r in rows if r["_replaces"]}
+    claims: dict[str, set[str]] = {}
     for r in rows:
-        if r["_key"] in replaced_by:
-            r["superseded_by"] = replaced_by[r["_key"]]
+        if r["_replaces"]:
+            claims.setdefault(r["_replaces"], set()).add(r["notice"])
+    loaded = {r["_key"] for r in rows}
+    for r in rows:
+        by = claims.get(r["_key"], set())
+        if len(by) > 1:
+            r["version_status"] = "conflict"
+        elif by:
+            r["superseded_by"] = next(iter(by))
+            r["version_status"] = "superseded"
+        elif r["_replaces"] and r["_replaces"] not in loaded:
+            r["version_status"] = "unresolved"
+        else:
+            r["version_status"] = "current_in_snapshot"
+
+
+def latest(rows: list[dict], row: dict) -> dict:
+    """Follow superseded_by to the end of the chain (A -> B -> C gives C) for the same lot."""
+    index = {(r["notice"], r["lot"]): r for r in rows}
+    seen = set()
+    while row["superseded_by"] and (row["notice"], row["lot"]) not in seen:
+        seen.add((row["notice"], row["lot"]))
+        nxt = index.get((row["superseded_by"], row["lot"]))
+        if nxt is None:
+            break
+        row = nxt
+    return row
+
+
+def missing_from_manifest(folder: Path) -> list[str]:
+    """Notices the manifests say should be there: ids.txt (the sample) and changes.json (originals)."""
+    missing = []
+    if (folder / "ids.txt").exists():
+        ids = [i for i in (folder / "ids.txt").read_text().split() if i.strip()]
+        missing += [f"xml/{i}.xml" for i in ids if not (folder / "xml" / f"{i}.xml").exists()]
+    if (folder / "changes.json").exists():
+        reps = [c["replaces"] for c in json.loads((folder / "changes.json").read_text()) if c.get("replaces")]
+        missing += [f"originals/{i}.xml" for i in reps if not (folder / "originals" / f"{i}.xml").exists()]
+    return missing
 
 
 def read_folder(folder: Path, fields_json: Path, originals: Path | None = None) -> tuple[list[dict], list[str]]:
     """Read every notice in `folder`, plus the replaced originals in `originals` if given.
 
-    Loading both lets mark_superseded apply each correction to the notice it names.
+    Each notice identity (BT-701 + version) is read once: an identical copy in both folders
+    is skipped, and a different file with the same identity is refused as a conflict.
     """
     _, xpaths = load_xpaths(fields_json)
     rows, refused = [], []
     files = sorted(folder.glob("*.xml"))
     if originals is not None and originals.is_dir():
         files += sorted(originals.glob("*.xml"))
+    seen: dict[str, tuple[str, str]] = {}
     for p in files:
         try:
-            rows += read_notice(p, xpaths)
+            got = read_notice(p, xpaths)
         except NotANotice as e:
             refused.append(str(e))
+            continue
+        key = got[0]["_key"] if got else None
+        if key:
+            if key in seen:
+                if seen[key][0] == got[0]["_sha_full"]:
+                    continue  # the same notice twice: count it once
+                refused.append(f"{p.name}: conflict, notice {key} also in {seen[key][1]} with different content")
+                continue
+            seen[key] = (got[0]["_sha_full"], p.name)
+        rows += got
     mark_superseded(rows)
     return rows, refused

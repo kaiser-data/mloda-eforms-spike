@@ -41,7 +41,7 @@ def test_reads_real_notices_with_citations(tmp_path):
 def test_refuses_an_http_error_page_saved_as_xml(tmp_path):
     d = _dossier(tmp_path)
     (d / "xml" / "800999-2026.xml").write_text("<html><head><title>429 Too Many Requests</title></head></html>")
-    with pytest.raises(Exception, match="not eForms notices"):
+    with pytest.raises(Exception, match="not a UBL/eForms notice"):
         _run(d)
 
 
@@ -87,3 +87,67 @@ def test_one_run_loads_originals_and_applies_corrections(tmp_path):
     assert old and all(r["tender_lots~superseded_by"] == "800275-2026" for r in old)
     hits = m.open_lots(t, m.date(2026, 11, 25), "", "", 30).column("tender_lots~notice").to_pylist()
     assert "763684-2026" not in hits and "800275-2026" in hits
+
+
+# --- version identity, chains and completeness -------------------------------------------
+
+A, B = "692407-2026", "800157-2026"  # real pair: B's BT-758 names A; both deadlines fall in the window
+TODAY = m.date(2026, 11, 25)
+
+
+def _pair(tmp_path: Path) -> Path:
+    d = _dossier(tmp_path)
+    shutil.copy(ROOT / "data" / "xml" / f"{B}.xml", d / "xml")
+    (d / "originals").mkdir()
+    shutil.copy(ROOT / "data" / "originals" / f"{A}.xml", d / "originals")
+    return d
+
+
+def _notices(t: pa.Table) -> list[str]:
+    return m.open_lots(t, TODAY, "", "", 30).column("tender_lots~notice").to_pylist()
+
+
+def test_superseded_flag_alone_excludes_an_original_inside_the_window(tmp_path):
+    t = _run(_pair(tmp_path))
+    rows = {r["tender_lots~notice"]: r for r in t.to_pylist()}
+    assert rows[A]["tender_lots~deadline"] == "2026-12-02"  # A would match the window on its own
+    assert rows[A]["tender_lots~version_status"] == "superseded"
+    assert A not in _notices(t) and B in _notices(t)
+
+
+def test_same_notice_in_both_folders_is_counted_once(tmp_path):
+    d = _pair(tmp_path)
+    shutil.copy(ROOT / "data" / "xml" / f"{B}.xml", d / "originals")
+    rows = [r for r in _run(d).to_pylist() if r["tender_lots~notice"] == B]
+    assert len(rows) == 1
+
+
+def test_same_identity_with_different_content_is_refused(tmp_path):
+    d = _pair(tmp_path)
+    raw = (ROOT / "data" / "xml" / f"{B}.xml").read_text(encoding="utf-8")
+    (d / "originals" / "copy.xml").write_text(raw.replace("2026-12-21+01:00", "2026-12-24+01:00"), encoding="utf-8")
+    with pytest.raises(Exception, match="conflict"):
+        _run(d)
+
+
+def test_chain_of_corrections_resolves_to_the_last_version(tmp_path):
+    # synthetic C replaces the real B, which replaces the real A
+    d = _pair(tmp_path)
+    raw = (ROOT / "data" / "xml" / f"{B}.xml").read_text(encoding="utf-8")
+    c = (raw.replace("9bcdb08c-aae7-41a4-96e7-f73bf14bc1d1", "00000000-0000-4000-8000-00000000000c")
+            .replace("150ae3e7-899c-4c62-980e-9b01093470e9-01", "9bcdb08c-aae7-41a4-96e7-f73bf14bc1d1-01")
+            .replace("2026-12-21+01:00", "2026-12-20+01:00"))
+    (d / "xml" / "C-synthetic.xml").write_text(c, encoding="utf-8")
+    t = _run(d)
+    rows = [{k.removeprefix("tender_lots~"): v for k, v in r.items()} for r in t.to_pylist()]
+    by = {r["notice"]: r for r in rows}
+    assert by[A]["superseded_by"] == B and by[B]["superseded_by"] == "C-synthetic"
+    assert m.eforms_lots.latest(rows, by[A])["deadline"] == "2026-12-20"
+    assert [n for n in _notices(t) if n in (A, B, "C-synthetic")] == ["C-synthetic"]
+
+
+def test_missing_download_from_manifest_is_refused(tmp_path):
+    d = _pair(tmp_path)
+    (d / "ids.txt").write_text(f"800869-2026\n800306-2026\n{B}\n800999-2026\n")
+    with pytest.raises(Exception, match="not downloaded"):
+        _run(d)

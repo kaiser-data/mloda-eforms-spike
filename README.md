@@ -4,6 +4,8 @@ This is a proof of concept for the November mloda proposal. It reads real EU ten
 in eForms XML, into an mloda feature, `tender_lots`. Each value records the notice, lot, eForms
 business term and XPath it came from.
 
+Built for mloda's [Call for Plugins](https://mloda.ai/news/events/call-for-plugins/), round 2: a source agents can't use as-is (TED eForms XML), shaped into cited lot rows, with answers that trace to a named field and refuse when the evidence is incomplete or contradictory.
+
 ## See it in one command (offline, no TED download)
 
 A synthetic original says the tender closed on 20 Oct; its correction (BT-758) moves the deadline to 27 Nov, 11:00 CET. Asked at 25 Nov, 11:01, the answer comes from the corrected notice, with the XPath of each date and value:

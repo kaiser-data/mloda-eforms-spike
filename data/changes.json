@@ -1,0 +1,308 @@
+[
+ {
+  "change_notice": "800157-2026",
+  "procedure_id": "1c0ee7e4-eb6a-4fdd-93fa-93289aa675ce",
+  "bt_758": "150ae3e7-899c-4c62-980e-9b01093470e9-01",
+  "replaces": "692407-2026",
+  "replaced_published": "2026-10-07",
+  "notices_in_procedure": 3,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800206-2026",
+  "procedure_id": "d75da660-e7a4-4d9b-a59c-8e8c6735a032",
+  "bt_758": "027f1665-3dfa-45d0-9344-f038580eb977-03",
+  "replaces": "799564-2026",
+  "replaced_published": "2026-11-17",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800229-2026",
+  "procedure_id": "f756e3ca-27bc-407e-a690-8e27f35d1d29",
+  "bt_758": "5beac4a5-72fa-41bc-834d-2a89a4a814c4-01",
+  "replaces": "794621-2026",
+  "replaced_published": "2026-11-16",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800275-2026",
+  "procedure_id": "ae380fe6-a6ff-4288-89de-44ae50e3ebb7",
+  "bt_758": "3ee98e63-ca4e-46cb-986f-fc494d736c11-01",
+  "replaces": "763684-2026",
+  "replaced_published": "2026-11-03",
+  "notices_in_procedure": 3,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800306-2026",
+  "procedure_id": "910355c5-9fbb-4bb0-b34a-a8dfb7c3632a",
+  "bt_758": "b394e8f6-e247-4c22-a2f4-a880584db7ad-01",
+  "replaces": "738987-2026",
+  "replaced_published": "2026-10-26",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800308-2026",
+  "procedure_id": "dbe794ed-38aa-4bfe-aa25-fe52a9fce9c1",
+  "bt_758": "62c4a66b-1925-4043-884e-88f419a8ae55-01",
+  "replaces": "799945-2026",
+  "replaced_published": "2026-11-17",
+  "notices_in_procedure": 4,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800322-2026",
+  "procedure_id": "b7105a92-efa5-4125-98e0-6132c0d8165a",
+  "bt_758": "d9b36364-b311-4b28-a260-ca93e1da1138-01",
+  "replaces": "726429-2026",
+  "replaced_published": "2026-10-21",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800343-2026",
+  "procedure_id": "2f22c096-ab61-484c-aac4-73ba1db84d10",
+  "bt_758": "71099702-da3c-48a2-92c4-69326f352d1a-01",
+  "replaces": "792343-2026",
+  "replaced_published": "2026-11-13",
+  "notices_in_procedure": 6,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800355-2026",
+  "procedure_id": "d4d9146e-c54c-4995-84da-2069776fc1f7",
+  "bt_758": "5108624a-7d34-4eef-b1c1-2e24d521afcb-01",
+  "replaces": "794208-2026",
+  "replaced_published": "2026-11-16",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800423-2026",
+  "procedure_id": "b66a31fa-3542-4cd5-be1b-63112133d0e1",
+  "bt_758": "0ce3a62c-aafc-43ec-a8a0-08d3afd89457-01",
+  "replaces": "794711-2026",
+  "replaced_published": "2026-11-16",
+  "notices_in_procedure": 4,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800427-2026",
+  "procedure_id": "30ea11d0-a74b-4acf-a619-48d609eb4f4d",
+  "bt_758": "1a2868e4-a659-4a75-a924-f2ddcfc2ef9d-01",
+  "replaces": "685328-2026",
+  "replaced_published": "2026-10-05",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800478-2026",
+  "procedure_id": "0b48888f-331b-47aa-97ab-04216723473c",
+  "bt_758": "e5df1a61-0f3a-4542-84d7-edeca5ebf0d2-01",
+  "replaces": "786796-2026",
+  "replaced_published": "2026-11-12",
+  "notices_in_procedure": 4,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800502-2026",
+  "procedure_id": "864b7fba-1a7d-470b-a47e-337b2731a51e",
+  "bt_758": "60b23790-2e8f-4146-9e11-65ccf44b74c7-01",
+  "replaces": "775924-2026",
+  "replaced_published": "2026-11-09",
+  "notices_in_procedure": 7,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800521-2026",
+  "procedure_id": "b82b3ace-fbab-4729-89de-3e96961779f8",
+  "bt_758": "284726a5-f230-47ca-a331-921000c90b0d-01",
+  "replaces": "741675-2026",
+  "replaced_published": "2026-10-27",
+  "notices_in_procedure": 3,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800534-2026",
+  "procedure_id": "c1e76e51-5d32-4713-834f-ca8e14cd3cdc",
+  "bt_758": "169eb10f-6bdf-42e7-a617-ec3ffc0065cd-01",
+  "replaces": "797424-2026",
+  "replaced_published": "2026-11-17",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800569-2026",
+  "procedure_id": "e06eda2e-9173-457c-b82d-c2cd5285ae20",
+  "bt_758": "8970d300-aef5-4cc5-9fb4-6e0e04c706c3-01",
+  "replaces": "725017-2026",
+  "replaced_published": "2026-10-20",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800678-2026",
+  "procedure_id": "49af10d7-e5e7-4a1c-a030-076911447183",
+  "bt_758": "f8ba3d9e-27b5-4430-88b5-5b0233b66425-01",
+  "replaces": "787220-2026",
+  "replaced_published": "2026-11-12",
+  "notices_in_procedure": 4,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800708-2026",
+  "procedure_id": "b3587083-7477-442c-afa1-7993140a5484",
+  "bt_758": "f049cf30-f008-4c5f-8c75-263f9073917f-01",
+  "replaces": "716535-2026",
+  "replaced_published": "2026-10-16",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800747-2026",
+  "procedure_id": "f69fe566-d4c1-4130-bc5a-ad19c7b49112",
+  "bt_758": "2fc359b9-c2ea-418f-8b71-ad3d153006d6-01",
+  "replaces": "708584-2026",
+  "replaced_published": "2026-10-14",
+  "notices_in_procedure": 3,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800748-2026",
+  "procedure_id": "30a7d19c-5428-4233-9885-fbd4694eb3f5",
+  "bt_758": "808c6d42-aa47-4ac6-8c27-f0757d31cc4e-01",
+  "replaces": "382585-2025",
+  "replaced_published": "2025-06-13",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800749-2026",
+  "procedure_id": "1f135c20-7e98-4e4a-8376-6b83510bdcae",
+  "bt_758": "f23ada9e-64b8-4388-b8c0-8682131e4923-01",
+  "replaces": "748499-2026",
+  "replaced_published": "2026-10-28",
+  "notices_in_procedure": 3,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800784-2026",
+  "procedure_id": "b9f2638b-370a-4a6e-8561-c3fe8feb17d0",
+  "bt_758": "532c5d38-bf53-4d96-8047-14cddca1f1da-01",
+  "replaces": "718744-2026",
+  "replaced_published": "2026-10-19",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800789-2026",
+  "procedure_id": "17e320a8-6861-4a75-83fa-0c43cf226c89",
+  "bt_758": "0033eb56-480c-4f58-bc63-c9d7588d271d-01",
+  "replaces": "787285-2026",
+  "replaced_published": "2026-11-12",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800819-2026",
+  "procedure_id": "1906f67d-d07a-4866-80cb-a351bc89e1d9",
+  "bt_758": "b4bfd0aa-28cf-4c2c-96fc-7ad88cb481e7-01",
+  "replaces": "317941-2026",
+  "replaced_published": "2026-05-08",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800851-2026",
+  "procedure_id": "a7b24bb8-1757-47fc-8e83-309fad8bd137",
+  "bt_758": "06f3686f-dac4-4da1-b375-9777be4277e6-01",
+  "replaces": "771003-2026",
+  "replaced_published": "2026-11-05",
+  "notices_in_procedure": 7,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800869-2026",
+  "procedure_id": "811e8e40-48bc-4aca-8ea0-af671a2301eb",
+  "bt_758": "221c1480-9485-4dda-b90b-68ad1570f30d-01",
+  "replaces": "775795-2026",
+  "replaced_published": "2026-11-09",
+  "notices_in_procedure": 3,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800886-2026",
+  "procedure_id": "b1c35e6f-0621-4c57-84fc-033918643252",
+  "bt_758": "bc7ec790-dab5-4505-80f7-f3635bdb6663-01",
+  "replaces": "756830-2026",
+  "replaced_published": "2026-11-02",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800964-2026",
+  "procedure_id": "313edda9-6c27-430a-ace4-c5c8db3ad414",
+  "bt_758": "7e0141c8-b361-43b2-83ec-f07604258eb7-01",
+  "replaces": "716343-2026",
+  "replaced_published": "2026-10-16",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "800975-2026",
+  "procedure_id": "d425cad5-cf4c-434e-a897-5050a4f30486",
+  "bt_758": "99e33c9d-70ce-48e3-a139-136402c38662-01",
+  "replaces": "749660-2026",
+  "replaced_published": "2026-10-29",
+  "notices_in_procedure": 3,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "801014-2026",
+  "procedure_id": "92e48b3b-631b-46bc-aee8-cca004485129",
+  "bt_758": "c01e8534-0ac0-4478-a6b7-5b54caea22d4-01",
+  "replaces": "793176-2026",
+  "replaced_published": "2026-11-16",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "801017-2026",
+  "procedure_id": "4c0e3423-1f6f-438f-87ed-105dcc80e3ea",
+  "bt_758": "69997525-95ff-4f8a-b7c9-21de26274421-01",
+  "replaces": "791915-2026",
+  "replaced_published": "2026-11-13",
+  "notices_in_procedure": 5,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "801029-2026",
+  "procedure_id": "aef647bb-d08d-492c-84ef-07f644f1c844",
+  "bt_758": "660f93a3-b316-41a3-bea5-86df318a1cc5-01",
+  "replaces": "686722-2026",
+  "replaced_published": "2026-10-06",
+  "notices_in_procedure": 3,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "801042-2026",
+  "procedure_id": "88500e0b-3548-4a18-a30b-f4832ded6857",
+  "bt_758": "c5471598-34f0-4dc7-8e10-7da069cad523-01",
+  "replaces": "778926-2026",
+  "replaced_published": "2026-11-09",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ },
+ {
+  "change_notice": "801045-2026",
+  "procedure_id": "01a1a59f-94d3-4878-9ca3-8ca65f701111",
+  "bt_758": "01a1a5a0-b0e8-4a73-a1ae-8324e60bb25a-01",
+  "replaces": "780091-2026",
+  "replaced_published": "2026-11-10",
+  "notices_in_procedure": 2,
+  "status": "resolved"
+ }
+]

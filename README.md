@@ -14,7 +14,7 @@ business term and XPath it came from.
 | Citations | 168 of 168 cited values re-resolve to the same value when the XPath is evaluated with lxml, an independent engine |
 | Refusals (tests) | an HTTP 429 page saved as `.xml` makes the run refuse. Mixed currencies are refused in a total, and when no lot states a value the answer is "no total", not 0. |
 | Honesty | only 25 of 164 lots state an estimated value (BT-27). Totals say "15 of 92 lots" and never count a missing value as 0. |
-| Change notices | 34 of 99 notices are change notices (BT-758). Their originals predate the sample, so following BT-758 to the original is planned work. |
+| Change notices | 34 of 99 notices are change notices (BT-758). `src/resolve_changes.py` resolves **34 of 34** to the exact notice they replace through the TED search API (BT-758 = the changed notice's identifier plus its version). The originals were published from June 2025 to 17 Nov 2026, all outside the sample. Result in `data/changes.json`. |
 
 ## Run
 
@@ -24,6 +24,7 @@ python3 -I src/fetch_data.py data                                # SDK fields.js
 .venv/bin/python -I src/eforms_mloda.py "$PWD/data" 2026-11-25   # two questions, cited answers
 .venv/bin/python -I src/check_citations.py "$PWD/data"           # re-resolve every citation with lxml
 .venv/bin/python -m pytest -q tests                              # refusal tests through mloda
+python3 -I src/resolve_changes.py data                            # link each change notice to the notice it replaces (TED API)
 ```
 
 ## Files
@@ -37,7 +38,7 @@ python3 -I src/fetch_data.py data                                # SDK fields.js
 ## Not done yet (the 1–15 Dec plan)
 
 - Split out the general `xml` base reader. The mapping is already data (SDK fields), but it lives in one module.
-- Follow BT-758 change notices back to their originals and supersede them across fetch windows.
+- Fetch the resolved originals and mark their lots superseded inside `tender_lots` (the link itself already resolves, see above).
 - Use `defusedxml`, run the registry's `SourceFeatureGroupTestMixin` conformance suite, and package for mloda-registry.
 - Turn `open_lots` into an mloda feature group with CPV parent codes and NUTS levels, instead of a pyarrow filter.
 

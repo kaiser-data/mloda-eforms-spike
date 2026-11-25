@@ -9,19 +9,19 @@ business term and XPath it came from.
 | Check | Result |
 |---|---|
 | Source | 99 real German contract notices (`cn-standard`), published 18 Nov 2026 (dispatched 16–17 Nov), fetched from the public TED API. The full week, `notice-type = cn-standard AND place-of-performance IN (DEU) AND publication-date >= 20261118 AND publication-date <= 20261125`, returns 1,882 notices |
-| Through mloda | `mloda.run_all(Feature("tender_lots"))` reads the 99-notice sample plus the 34 replaced originals: **225 lot rows in 18 columns**, of which 164 are `current_in_snapshot` (the 99 sample notices) and 61 `superseded`. The reader is a `SourceFeatureGroup`, the same pattern as German Ledger. |
+| Through mloda | `mloda.run_all(Feature("tender_lots"))` reads the 99-notice sample plus the 34 replaced originals: **225 lot rows in 26 columns**, of which 164 are `current_in_snapshot` (the 99 sample notices) and 61 `superseded`. The reader is a `SourceFeatureGroup`, the same pattern as German Ledger. |
 | Schema-driven | XPaths are read from the official eForms SDK `fields.json` (1.13.0). The notices use SDK 1.13 and 1.14, and both parse. |
-| Citations | All **229 of 229** citations in that run (168 in the sample, 61 in the originals) re-resolve to the same value when the XPath is evaluated with lxml, an independent engine, on the file each row was read from. |
-| Tests | 15 tests, all through `mloda.run_all`: an HTTP 429 page saved as `.xml` is refused, and so is a notice without lots or without an identity; a download missing from `ids.txt` or `changes.json`, or a file they don't list, is refused; two corrections claiming one original are a `conflict` and never answer; the same notice in both folders is counted once, and the same identity with different content is refused as a conflict; a superseded original whose deadline is inside the window is still excluded; a chain A → B → C resolves to C; mixed currencies, or a value without a currency, are refused in a total; no stated value gives "no total", not 0. |
-| Honesty | only 25 of 164 lots state an estimated value (BT-27). Totals say "15 of 92 lots" and never count a missing value as 0. |
-| Change notices | 34 of 99 notices are change notices (BT-758). `src/resolve_changes.py` resolves **34 of 34** to the exact notice they replace through the TED search API (BT-758 = the changed notice's identifier plus its version). Version status comes from that link only: `superseded`, `current_in_snapshot` (nothing loaded replaces it), `unresolved` (a change notice whose original isn't loaded) or `conflict`. **10 lots in 7 notices look closed in the original but have a deadline after 25 Nov in the correction** (e.g. 20 Oct → 27 Nov; 13 lots in 10 notices if deadlines on 25 Nov itself count, but three of those closed that morning). `src/compare_changes.py`: 20 of 34 corrections move a deadline, one changes a value, one a title. Open-lot answers are unchanged, because superseded rows are excluded. |
+| Citations | All **480 of 480** citations in that run re-resolve to the same text when the XPath is evaluated with lxml on the file each row was read from: tender deadline date and time (BT-131), request-to-participate date and time (BT-1311) and estimated value (BT-27). Title, CPV, region and country carry no citation yet. The checker applies the same manifest check as the reader and fails on an empty snapshot or any mismatch. |
+| Tests | 22 tests through `mloda.run_all` and the checker: exact closing times (three lots that closed at 09:00/11:00 on 25 Nov are in at 08:59 and gone at 11:01); 16 request-to-participate lots found and labelled; a country/region contradiction flagged and kept out of the Germany count; a query time without a time zone refused; a fork that is later corrected again stays `conflict`; the checker fails on an empty or incomplete snapshot; totals keep cents; plus refusals (HTTP 429 page, notice without lots or identity, missing or unlisted file, identity conflict, mixed or missing currency) and version handling (duplicate counted once, superseded original excluded, A → B → C resolves to C). |
+| What a supplier can do | Query instant **2026-11-25T11:01:00+01:00**, 30 days, a place of performance in Germany (an address whose region and country agree): **102 lots, 86 "submit tender" and 16 "request to participate"**, each with its deadline in local time and a citation. Stated values: **1,185,833.35 EUR on 11 of 86** tender lots and **48,324,280.64 EUR on 7 of 16** request lots; missing values are never counted as 0. Construction in Bavaria: 6 lots, none states a value. `800917-2026` (addresses say Spain, regions say France, Germany and Ireland) is flagged and not counted as German. |
+| Change notices | 34 of 99 notices are change notices (BT-758). `src/resolve_changes.py` resolves **34 of 34** to the exact notice they replace through the TED search API (BT-758 = the changed notice's identifier plus its version). Version status comes from that link only: `superseded`, `current_in_snapshot` (nothing loaded replaces it), `unresolved` (a change notice whose original isn't loaded) or `conflict` (carried down later corrections). **10 lots in 7 notices look closed in the original but have a deadline after 25 Nov in the correction** (e.g. `686722-2026` 20 Oct → `801029-2026` 27 Nov). `src/compare_changes.py` compares date, time, request deadline, amount and currency: 20 of 34 corrections move a deadline date, 7 a deadline time, 1 a request deadline, 1 a value, 1 a title. |
 
 ## Run
 
 ```sh
 uv venv .venv --python 3.12 && uv pip install --python .venv/bin/python "mloda==0.22.0" pyarrow lxml pytest
 python3 -I src/fetch_data.py data                                # SDK fields.json + the 99 notices in data/ids.txt
-.venv/bin/python -I src/eforms_mloda.py "$PWD/data" 2026-11-25   # two questions, cited answers
+.venv/bin/python -I src/eforms_mloda.py "$PWD/data" 2026-11-25T11:01:00+01:00   # what can a supplier still do, cited
 .venv/bin/python -I src/check_citations.py "$PWD/data"           # re-resolve every citation (sample + originals) with lxml
 .venv/bin/python -m pytest -q tests                              # refusal tests through mloda
 python3 -I src/resolve_changes.py data                            # link each change notice to the notice it replaces (TED API)
@@ -32,18 +32,17 @@ python3 -I src/fetch_data.py data                                # again: now al
 ## Files
 
 - `src/eforms_lots.py`: the core (stdlib). It maps SDK field to XPath, builds lot rows with citations, and applies two rules: which value applies to a lot, and when a notice is superseded.
-- `src/eforms_mloda.py`: the `EformsLotsReader` `SourceFeatureGroup`, plus the `open_lots` filter and a total that refuses mixed currencies.
+- `src/eforms_mloda.py`: the `EformsLotsReader` `SourceFeatureGroup`, plus `open_lots` (exact query time, stage, deadline in local time, consistent location) and a decimal total that refuses mixed or missing currencies.
 - `src/check_citations.py`: checks every citation of the run independently, in the sample and the originals; each XPath must select exactly one element, and any mismatch exits non-zero.
 - `tests/test_refusals.py`: 15 tests through `mloda.run_all` (refusals, identity, chains, completeness).
 - `src/fetch_data.py`: rebuilds `data/` from public sources. `data/ids.txt` lists the 99 TED publication numbers. The notice XML isn't committed because it holds procurement officers' contact details; TED publishes it, and this repo doesn't need copies. `fields.json` is eForms SDK 1.13.0 from github.com/OP-TED/eForms-SDK (EUPL-1.2).
 
-## Known limits (found in review, 25 Nov)
+## Known limits
 
-- **"Open lots" is a calendar-day search on the tender deadline date (BT-131).** Times are dropped, so `800749-2026` and `800869-2026` (closed 09:00 CET on 25 Nov) and `800964-2026` (11:00) still count for that day. Lots that only take participation requests (16 of the 164) aren't included at all.
-- **Region codes are trusted over countries.** `800917-2026` (2.3 m of the 4.2 m EUR) has region codes in France, Germany and Ireland, while every address says Spain. The reader doesn't flag that contradiction yet.
-- `compare_changes.py` compares the amount without the currency, and totals print without cents (exact: 4,245,016.31 EUR).
-- `check_citations.py` doesn't run the manifest check yet, so an empty snapshot passes with 0 checks. A fork that later continues (B and C replace A, then D replaces B) leaves D `current_in_snapshot`.
-- `resolve_changes.py` reads one page of 100 results per procedure (enough here: the largest has 7).
+- Deadlines without a time (date only) are kept and labelled "date only, no time given"; their exact cut-off is unknown.
+- Region codes and countries are compared per address; a lot whose only German address contradicts its country isn't counted as German. Title, CPV, region and country have no citation yet.
+- `resolve_changes.py` reads one page of 100 results per procedure (the largest here has 7) and doesn't follow originals' own predecessors yet.
+- Tests use the real TED snapshot (fetch first); small synthetic fixtures and CI are planned.
 
 ## Not done yet (the 1–15 Dec plan)
 

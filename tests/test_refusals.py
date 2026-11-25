@@ -1,5 +1,6 @@
 import shutil
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pyarrow as pa
@@ -10,6 +11,8 @@ sys.path.insert(0, str(ROOT / "src"))
 import eforms_mloda as m
 
 SAMPLE = ["800869-2026.xml", "800306-2026.xml"]
+CET = timezone(timedelta(hours=1))
+NOON = datetime(2026, 11, 25, 12, 0, tzinfo=CET)
 
 
 def _dossier(tmp_path: Path) -> Path:
@@ -85,14 +88,14 @@ def test_one_run_loads_originals_and_applies_corrections(tmp_path):
     t = _run(d)
     old = [r for r in t.to_pylist() if r["tender_lots~notice"] == "763684-2026"]
     assert old and all(r["tender_lots~superseded_by"] == "800275-2026" for r in old)
-    hits = m.open_lots(t, m.date(2026, 11, 25), "", "", 30).column("tender_lots~notice").to_pylist()
+    hits = m.open_lots(t, NOON, "", "", 30).column("tender_lots~notice").to_pylist()
     assert "763684-2026" not in hits and "800275-2026" in hits
 
 
 # --- version identity, chains and completeness -------------------------------------------
 
 A, B = "692407-2026", "800157-2026"  # real pair: B's BT-758 names A; both deadlines fall in the window
-TODAY = m.date(2026, 11, 25)
+TODAY = NOON
 
 
 def _pair(tmp_path: Path) -> Path:
@@ -186,3 +189,78 @@ def test_a_notice_without_lots_is_refused(tmp_path):
     (d / "xml" / "nolots.xml").write_text(raw.replace('schemeName="Lot"', 'schemeName="Part"'), encoding="utf-8")
     with pytest.raises(Exception, match="no procurement lots"):
         _run(d)
+
+
+# --- what a supplier can still do, until exactly when (review acceptance cases) ---------------
+
+def _full() -> pa.Table:
+    return _run(ROOT / "data")
+
+
+def test_lots_that_closed_this_morning_are_gone_at_11_01():
+    t = _full()
+    closed = {"800749-2026", "800869-2026", "800964-2026"}  # 09:00, 09:00, 11:00 CET on 25 Nov
+    before = set(m.open_lots(t, datetime(2026, 11, 25, 8, 59, tzinfo=CET), "", "", 30)
+                 .column("tender_lots~notice").to_pylist())
+    after = set(m.open_lots(t, datetime(2026, 11, 25, 11, 1, tzinfo=CET), "", "", 30)
+                .column("tender_lots~notice").to_pylist())
+    assert closed <= before and not closed & after
+
+
+def test_participation_requests_are_found_and_labelled():
+    t = _full()
+    hits = m.open_lots(t, datetime(2026, 11, 25, 11, 1, tzinfo=CET), "", "DE", 30, m.REQUEST)
+    rows = hits.to_pylist()
+    assert len(rows) == 16 and {r["tender_lots~action"] for r in rows} == {"request to participate"}
+    ex = [r for r in rows if r["tender_lots~notice"] == "800308-2026" and r["tender_lots~lot"] == "LOT-0001"]
+    assert ex and ex[0]["tender_lots~until"].startswith("2026-12-09")
+    assert ex[0]["tender_lots~cite_request_deadline"]
+
+
+def test_country_and_region_contradiction_is_flagged_and_not_counted_as_germany():
+    t = _full()
+    rows = [r for r in t.to_pylist() if r["tender_lots~notice"] == "800917-2026"]
+    assert len(rows) == 3 and all("DE300 vs ESP" in r["tender_lots~location_conflict"] for r in rows)
+    de = m.open_lots(t, NOON, "", "DE", 30).column("tender_lots~notice").to_pylist()
+    assert "800917-2026" not in de
+
+
+def test_query_time_without_time_zone_is_refused():
+    with pytest.raises(ValueError, match="time zone"):
+        m.open_lots(_full(), datetime(2026, 11, 25, 12, 0), "", "", 30)
+
+
+def test_a_later_correction_of_one_side_of_a_fork_stays_in_conflict(tmp_path):
+    # B and B2 both replace A (a fork), then D replaces B: D must not answer while the fork is open
+    d = _pair(tmp_path)
+    raw = (ROOT / "data" / "xml" / f"{B}.xml").read_text(encoding="utf-8")
+    (d / "xml" / "B2-synthetic.xml").write_text(
+        raw.replace("9bcdb08c-aae7-41a4-96e7-f73bf14bc1d1", "00000000-0000-4000-8000-0000000000b2"), encoding="utf-8")
+    (d / "xml" / "D-synthetic.xml").write_text(
+        raw.replace("9bcdb08c-aae7-41a4-96e7-f73bf14bc1d1", "00000000-0000-4000-8000-00000000000d")
+           .replace("150ae3e7-899c-4c62-980e-9b01093470e9-01", "9bcdb08c-aae7-41a4-96e7-f73bf14bc1d1-01"),
+        encoding="utf-8")
+    t = _run(d)
+    status = {r["tender_lots~notice"]: r["tender_lots~version_status"] for r in t.to_pylist()}
+    assert status["D-synthetic"] == "conflict"
+    assert "D-synthetic" not in _notices(t)
+
+
+def test_citation_checker_fails_on_an_empty_or_incomplete_snapshot(tmp_path):
+    import subprocess
+    (tmp_path / "xml").mkdir()
+    shutil.copy(ROOT / "data" / "fields.json", tmp_path / "fields.json")
+    (tmp_path / "ids.txt").write_text("800869-2026\n")
+    run = subprocess.run([sys.executable, "-I", str(ROOT / "src" / "check_citations.py"), str(tmp_path)],
+                         capture_output=True, text=True, check=False)
+    assert run.returncode != 0 and "refused" in run.stderr
+    (tmp_path / "ids.txt").unlink()
+    run = subprocess.run([sys.executable, "-I", str(ROOT / "src" / "check_citations.py"), str(tmp_path)],
+                         capture_output=True, text=True, check=False)
+    assert run.returncode != 0 and "empty snapshot" in run.stderr
+
+
+def test_totals_keep_cents():
+    t = _full()
+    out = m.stated_total(m.open_lots(t, datetime(2026, 11, 25, 11, 1, tzinfo=CET), "", "DE", 30, m.TENDER))
+    assert out.startswith("1,185,833.35 EUR over 11 of 86 lots")

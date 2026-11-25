@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import eforms_lots
 
-FIELDS = ["deadline", "value", "title", "cpv", "nuts"]
+FIELDS = ["deadline", "deadline_time", "request_deadline", "value", "currency", "title", "cpv", "nuts"]
 
 
 def main() -> None:
@@ -24,6 +24,8 @@ def main() -> None:
     notices_with = {f: set() for f in FIELDS}
     lots_added = lots_removed = compared = 0
     examples = []
+    unresolved = [p["change_notice"] for p in pairs if not p.get("replaces")]
+    pairs = [p for p in pairs if p.get("replaces")]
     for p in pairs:
         new = {r["lot"]: r for r in eforms_lots.read_notice(data / "xml" / f"{p['change_notice']}.xml", xpaths)}
         old = {r["lot"]: r for r in eforms_lots.read_notice(data / "originals" / f"{p['replaces']}.xml", xpaths)}
@@ -44,7 +46,7 @@ def main() -> None:
     print(f"{len(pairs)} change notices vs the notice each replaces; {compared} lots compared")
     for f in FIELDS:
         print(f"  {f:8s} changed on {changed[f]:3d} lots in {len(notices_with[f]):2d} of {len(pairs)} change notices")
-    print(f"  lots added {lots_added}, lots removed {lots_removed}")
+    print(f"  lots added {lots_added}, lots removed {lots_removed}; unresolved change notices: {unresolved or 'none'}")
     print("examples:")
     for e in examples:
         print("  " + e)

@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -72,20 +73,57 @@ class EformsLotsReader(SourceFeatureGroup):
         return pa.table({f"{TENDER_LOTS}~{c}": table.column(c) for c in eforms_lots.COLUMNS})
 
 
-def open_lots(t: pa.Table, today: date, cpv: str, nuts: str, days: int) -> pa.Table:
-    col = lambda c: t.column(f"{TENDER_LOTS}~{c}")
-    deadline = col("deadline")  # ISO YYYY-MM-DD strings compare correctly as text
-    mask = pc.and_(
-        pc.and_(pc.greater_equal(deadline, today.isoformat()),
-                pc.less_equal(deadline, (today + timedelta(days=days)).isoformat())),
-        # superseded and conflict rows never answer; unresolved = newest version known, so it stays
-        pc.invert(pc.is_in(col("version_status"), pa.array(["superseded", "conflict"]))),
-    )
-    if cpv:
-        mask = pc.and_(mask, pc.match_substring_regex(col("cpv"), f"(^|;){cpv}"))
-    if nuts:
-        mask = pc.and_(mask, pc.match_substring_regex(col("nuts"), f"(^|;){nuts}"))
-    return t.filter(pc.fill_null(mask, False))
+TENDER, REQUEST = "submit tender", "request to participate"
+
+
+def _deadline(day: str | None, time_: str | None, now: datetime) -> tuple[datetime | None, str]:
+    """Exact instant when the notice gives a time; otherwise only the calendar day is known."""
+    if not day:
+        return None, "none"
+    if not time_:
+        return None, "date only"
+    at = datetime.fromisoformat(f"{day}T{time_}")
+    return (at if at.tzinfo else at.replace(tzinfo=now.tzinfo)), "exact"
+
+
+def next_action(g: dict, now: datetime, days: int, stage: str | None = None) -> tuple[str, str, str] | None:
+    """The earliest step a supplier can still take within `days` of `now`: (action, until, precision)."""
+    end = now + timedelta(days=days)
+    options = []
+    for action, day, time_ in ((TENDER, g["deadline"], g["deadline_time"]),
+                               (REQUEST, g["request_deadline"], g["request_deadline_time"])):
+        if stage and action != stage:
+            continue
+        at, precision = _deadline(day, time_, now)
+        if at is not None and now < at <= end:
+            options.append((at.astimezone(UTC).isoformat(), action, at.isoformat(), precision))
+        elif precision == "date only" and now.date().isoformat() <= day <= end.date().isoformat():
+            options.append((f"{day}T23:59:59+00:00", action, f"{day} (date only, no time given)", precision))
+    return min(options)[1:] if options else None
+
+
+def open_lots(t: pa.Table, now: datetime, cpv: str, nuts: str, days: int, stage: str | None = None) -> pa.Table:
+    """Lots a supplier can still act on at the instant `now`: submit a tender or request to participate.
+
+    Superseded and conflict rows never answer (unresolved = newest version known, so it stays). A place
+    filter needs one address whose region and country agree; contradicting addresses don't qualify a lot.
+    """
+    if now.tzinfo is None:
+        raise ValueError("refused: the query time needs a time zone")
+    k = f"{TENDER_LOTS}~"
+    out = []
+    for r in t.to_pylist():
+        g = {c.removeprefix(k): v for c, v in r.items()}
+        if g["version_status"] in ("superseded", "conflict"):
+            continue
+        if cpv and not any(c.startswith(cpv) for c in (g["cpv"] or "").split(";")):
+            continue
+        if nuts and not eforms_lots.located_in(g["locations"], nuts):
+            continue
+        act = next_action(g, now, days, stage)
+        if act:
+            out.append({**r, k + "action": act[0], k + "until": act[1], k + "until_precision": act[2]})
+    return pa.Table.from_pylist(out) if out else t.slice(0, 0)
 
 
 def stated_total(t: pa.Table) -> str:
@@ -95,10 +133,11 @@ def stated_total(t: pa.Table) -> str:
     cur = [c for v, c in pairs if v is not None]
     if len(set(cur)) > 1:
         raise ValueError(f"refused: mixed currencies {sorted(set(cur))}")
-    vals = [v for v in t.column(f"{TENDER_LOTS}~value").to_pylist() if v is not None]
+    vals = [Decimal(str(v)) for v, _ in pairs if v is not None]
     if not vals:
         return f"no total: none of the {t.num_rows} lots states a value"
-    return f"{sum(vals):,.0f} {cur[0] if cur else ''} over {len(vals)} of {t.num_rows} lots (the other {t.num_rows - len(vals)} state no value and are not counted as 0)"
+    return (f"{sum(vals):,.2f} {cur[0]} over {len(vals)} of {t.num_rows} lots "
+            f"(the other {t.num_rows - len(vals)} state no value and are not counted as 0)")
 
 
 def show_correction(t: pa.Table, today: date) -> None:
@@ -117,7 +156,8 @@ def show_correction(t: pa.Table, today: date) -> None:
 
 def main() -> None:
     folder = sys.argv[1]
-    today = date.fromisoformat(sys.argv[2]) if len(sys.argv) > 2 else date.today()
+    # an exact instant with a time zone, e.g. 2026-11-25T11:01:00+01:00
+    now = datetime.fromisoformat(sys.argv[2]) if len(sys.argv) > 2 else datetime.now(UTC)
     [table] = mloda.run_all(
         features=[Feature(TENDER_LOTS)],
         compute_frameworks=[PyArrowTable],
@@ -127,14 +167,20 @@ def main() -> None:
     status = pc.value_counts(table.column(f"{TENDER_LOTS}~version_status")).to_pylist()
     print(f"mloda run_all -> {table.num_rows} lot rows, {len(table.column_names)} columns; version status: "
           + ", ".join(f"{d['values']} {d['counts']}" for d in status))
-    show_correction(table, today)
+    conflicts = [r for r in table.to_pylist() if r[f"{TENDER_LOTS}~location_conflict"]]
+    print(f"location conflicts (country vs region in the same address): {len(conflicts)} lots, e.g. "
+          + (f"{conflicts[0][f'{TENDER_LOTS}~notice']} {conflicts[0][f'{TENDER_LOTS}~location_conflict']}" if conflicts else "none"))
+    show_correction(table, now.date())
     for cpv, nuts, label in [("45", "DE2", "construction work, Bavaria"), ("", "DE", "any trade, a place of performance in Germany")]:
-        hits = open_lots(table, today, cpv, nuts, 30)
-        print(f"\nQ: open lots ({label}), deadline within 30 days of {today}: {hits.num_rows}")
-        for r in hits.sort_by(f"{TENDER_LOTS}~deadline").slice(0, 4).to_pylist():
+        hits = open_lots(table, now, cpv, nuts, 30)
+        acts = pc.value_counts(hits.column(f"{TENDER_LOTS}~action")).to_pylist() if hits.num_rows else []
+        print(f"\nQ: what can a supplier still do ({label}) between {now.isoformat()} and 30 days later? {hits.num_rows} lots: "
+              + ", ".join(f"{d['values']} {d['counts']}" for d in acts))
+        for r in hits.sort_by(f"{TENDER_LOTS}~until").slice(0, 4).to_pylist():
             g = lambda c, r=r: r[f"{TENDER_LOTS}~{c}"]
-            val = f"{g('value'):,.0f} {g('currency')} [{g('cite_value')}]" if g("value") is not None else "value not stated"
-            print(f"- {g('deadline')} {g('title')[:50]!r}\n    deadline [{g('cite_deadline')}]\n    value: {val}")
+            val = f"{g('value'):,.2f} {g('currency')} [{g('cite_value')}]" if g("value") is not None else "value not stated"
+            dl = g("cite_deadline_time") or g("cite_deadline") if g("action") == TENDER else g("cite_request_deadline_time") or g("cite_request_deadline")
+            print(f"- {g('action')} until {g('until')}: {g('title')[:50]!r}\n    deadline [{dl}]\n    value: {val}")
         print("  total:", stated_total(hits))
 
 

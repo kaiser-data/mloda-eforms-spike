@@ -19,18 +19,47 @@ NS = {
     "ext": "urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2",
 }
 LOT_PREFIX = "/*/cac:ProcurementProjectLot[cbc:ID/@schemeName='Lot']/"
-LOT_FIELDS = ["BT-21-Lot", "BT-27-Lot", "BT-131(d)-Lot", "BT-262-Lot", "BT-5071-Lot"]
+LOT_FIELDS = ["BT-21-Lot", "BT-27-Lot", "BT-131(d)-Lot", "BT-131(t)-Lot", "BT-1311(d)-Lot", "BT-1311(t)-Lot",
+              "BT-262-Lot", "BT-5071-Lot", "BT-5141-Lot"]
+# ISO 3166 alpha-3 (BT-5141 country) -> NUTS country prefix (BT-5071 region); NUTS uses EL for Greece, UK for GB
+NUTS_PREFIX = {
+    "AUT": "AT", "BEL": "BE", "BGR": "BG", "HRV": "HR", "CYP": "CY", "CZE": "CZ", "DNK": "DK", "EST": "EE",
+    "FIN": "FI", "FRA": "FR", "DEU": "DE", "GRC": "EL", "HUN": "HU", "IRL": "IE", "ITA": "IT", "LVA": "LV",
+    "LTU": "LT", "LUX": "LU", "MLT": "MT", "NLD": "NL", "POL": "PL", "PRT": "PT", "ROU": "RO", "SVK": "SK",
+    "SVN": "SI", "ESP": "ES", "SWE": "SE", "NOR": "NO", "ISL": "IS", "LIE": "LI", "CHE": "CH", "GBR": "UK",
+}
 NOTICE_FIELDS = ["BT-04-notice", "BT-05(a)-notice", "BT-757-notice", "BT-758-notice", "BT-27-Procedure"]
 
 COLUMNS = [
-    "notice", "lot", "title", "deadline", "cpv", "nuts", "value", "currency", "value_scope",
+    "notice", "lot", "title", "deadline", "deadline_time", "request_deadline", "request_deadline_time",
+    "cpv", "nuts", "locations", "location_conflict", "value", "currency", "value_scope",
     "procedure_id", "issue_date", "is_change_notice", "superseded_by", "version_status",
-    "cite_deadline", "cite_value", "sdk_version", "file_sha256",
+    "cite_deadline", "cite_deadline_time", "cite_request_deadline", "cite_request_deadline_time", "cite_value",
+    "sdk_version", "file_sha256",
 ]
 
 
 class NotANotice(ValueError):
     """The file is not an eForms notice (e.g. an HTTP error page saved as .xml)."""
+
+
+def location_conflicts(locations: str | None) -> list[str]:
+    """Addresses whose country (BT-5141) and NUTS region (BT-5071) name different countries."""
+    out = []
+    for pair in (locations or "").split(";"):
+        nuts, _, country = pair.partition(":")
+        if nuts and country and NUTS_PREFIX.get(country, nuts[:2]) != nuts[:2]:
+            out.append(f"{nuts} vs {country}")
+    return out
+
+
+def located_in(locations: str | None, prefix: str) -> bool:
+    """True when one address has a region under `prefix` and no country that contradicts it."""
+    for pair in (locations or "").split(";"):
+        nuts, _, country = pair.partition(":")
+        if nuts.startswith(prefix) and (not country or NUTS_PREFIX.get(country, nuts[:2]) == nuts[:2]):
+            return True
+    return False
 
 
 def load_xpaths(fields_json: Path) -> tuple[str, dict[str, str]]:
@@ -87,13 +116,35 @@ def read_notice(path: Path, xpaths: dict[str, str]) -> list[dict]:
             v, scope, cite_v = None, "not stated", None
 
         dl = got["BT-131(d)-Lot"][0].text.strip() if got["BT-131(d)-Lot"] else None
+
+        def txt(fid: str, lot_got: dict = got) -> str | None:
+            return lot_got[fid][0].text.strip() if lot_got[fid] else None
+
+        def cite(fid: str, value: str | None, nid: str = notice, lid: str = lot_id, lp: str = lot_path) -> str | None:
+            return f"{nid} {lid} {fid} @ {lp}{xpaths[fid].removeprefix(LOT_PREFIX)}" if value else None
+
+        dl_t, rq, rq_t = txt("BT-131(t)-Lot"), txt("BT-1311(d)-Lot"), txt("BT-1311(t)-Lot")
+        # pair country and region per address (the address path is the SDK's, minus the field)
+        addr_rel = xpaths["BT-5071-Lot"].removeprefix(LOT_PREFIX).rsplit("/", 1)[0]
+        locs = []
+        for a in lot.findall("./" + addr_rel, NS):
+            n = (a.findtext("cbc:CountrySubentityCode", default="", namespaces=NS) or "").strip()
+            c = (a.findtext("cac:Country/cbc:IdentificationCode", default="", namespaces=NS) or "").strip()
+            if n or c:
+                locs.append(f"{n}:{c}")
+        locations = ";".join(locs)
         rows.append({
             "notice": notice,
             "lot": lot_id,
             "title": got["BT-21-Lot"][0].text.strip() if got["BT-21-Lot"] else None,
             "deadline": dl[:10] if dl else None,
+            "deadline_time": dl_t,
+            "request_deadline": rq[:10] if rq else None,
+            "request_deadline_time": rq_t,
             "cpv": ";".join(e.text.strip() for e in got["BT-262-Lot"]),
             "nuts": ";".join(e.text.strip() for e in got["BT-5071-Lot"]),
+            "locations": locations,
+            "location_conflict": "; ".join(location_conflicts(locations)) or None,
             "value": float(v.text) if v is not None else None,
             "currency": v.get("currencyID") if v is not None else None,
             "value_scope": scope,
@@ -106,6 +157,9 @@ def read_notice(path: Path, xpaths: dict[str, str]) -> list[dict]:
                 f"{notice} {lot_id} BT-131(d)-Lot @ {lot_path}"
                 f"{xpaths['BT-131(d)-Lot'].removeprefix(LOT_PREFIX)}" if dl else None
             ),
+            "cite_deadline_time": cite("BT-131(t)-Lot", dl_t),
+            "cite_request_deadline": cite("BT-1311(d)-Lot", rq),
+            "cite_request_deadline_time": cite("BT-1311(t)-Lot", rq_t),
             "cite_value": cite_v,
             "sdk_version": sdk,
             "file_sha256": sha,
@@ -144,6 +198,14 @@ def mark_superseded(rows: list[dict]) -> None:
             r["version_status"] = "unresolved"
         else:
             r["version_status"] = "current_in_snapshot"
+    # a conflict is carried down every later correction until something resolves the fork
+    changed = True
+    while changed:
+        changed = False
+        status = {r["_key"]: r["version_status"] for r in rows}
+        for r in rows:
+            if r["_replaces"] and status.get(r["_replaces"]) == "conflict" and r["version_status"] != "conflict":
+                r["version_status"], changed = "conflict", True
 
 
 def latest(rows: list[dict], row: dict) -> dict:

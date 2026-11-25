@@ -37,6 +37,14 @@ python3 -I src/fetch_data.py data                                # again: now al
 - `tests/test_refusals.py`: 15 tests through `mloda.run_all` (refusals, identity, chains, completeness).
 - `src/fetch_data.py`: rebuilds `data/` from public sources. `data/ids.txt` lists the 99 TED publication numbers. The notice XML isn't committed because it holds procurement officers' contact details; TED publishes it, and this repo doesn't need copies. `fields.json` is eForms SDK 1.13.0 from github.com/OP-TED/eForms-SDK (EUPL-1.2).
 
+## Known limits (found in review, 25 Nov)
+
+- **"Open lots" is a calendar-day search on the tender deadline date (BT-131).** Times are dropped, so `800749-2026` and `800869-2026` (closed 09:00 CET on 25 Nov) and `800964-2026` (11:00) still count for that day. Lots that only take participation requests (16 of the 164) aren't included at all.
+- **Region codes are trusted over countries.** `800917-2026` (2.3 m of the 4.2 m EUR) has region codes in France, Germany and Ireland, while every address says Spain. The reader doesn't flag that contradiction yet.
+- `compare_changes.py` compares the amount without the currency, and totals print without cents (exact: 4,245,016.31 EUR).
+- `check_citations.py` doesn't run the manifest check yet, so an empty snapshot passes with 0 checks. A fork that later continues (B and C replace A, then D replaces B) leaves D `current_in_snapshot`.
+- `resolve_changes.py` reads one page of 100 results per procedure (enough here: the largest has 7).
+
 ## Not done yet (the 1–15 Dec plan)
 
 - Split out the general `xml` base reader. The mapping is already data (SDK fields), but it lives in one module.

@@ -122,10 +122,17 @@ def mark_superseded(rows: list[dict]) -> None:
             r["superseded_by"] = replaced_by[r["_key"]]
 
 
-def read_folder(folder: Path, fields_json: Path) -> tuple[list[dict], list[str]]:
+def read_folder(folder: Path, fields_json: Path, originals: Path | None = None) -> tuple[list[dict], list[str]]:
+    """Read every notice in `folder`, plus the replaced originals in `originals` if given.
+
+    Loading both lets mark_superseded apply each correction to the notice it names.
+    """
     _, xpaths = load_xpaths(fields_json)
     rows, refused = [], []
-    for p in sorted(folder.glob("*.xml")):
+    files = sorted(folder.glob("*.xml"))
+    if originals is not None and originals.is_dir():
+        files += sorted(originals.glob("*.xml"))
+    for p in files:
         try:
             rows += read_notice(p, xpaths)
         except NotANotice as e:

@@ -62,7 +62,7 @@ class EformsLotsReader(SourceFeatureGroup):
     @classmethod
     def load_neutral(cls, match: SourceMatch, features: FeatureSet) -> Any:
         folder = Path(str(match.access))
-        rows, refused = eforms_lots.read_folder(folder / "xml", folder / "fields.json")
+        rows, refused = eforms_lots.read_folder(folder / "xml", folder / "fields.json", folder / "originals")
         if refused:  # refuse the whole run rather than answer from a partial download
             raise ValueError(f"refused: {len(refused)} file(s) are not eForms notices, e.g. {refused[0]}")
         table = pa.Table.from_pylist(rows)
@@ -94,6 +94,20 @@ def stated_total(t: pa.Table) -> str:
     return f"{sum(vals):,.0f} {cur[0] if cur else ''} over {len(vals)} of {t.num_rows} lots (the other {t.num_rows - len(vals)} state no value and are not counted as 0)"
 
 
+def show_correction(t: pa.Table, today: date) -> None:
+    """The original alone says the tender closed; the correction it is superseded by says it is open."""
+    rows = t.to_pylist()
+    k = f"{TENDER_LOTS}~"
+    for r in rows:
+        if r[k + "superseded_by"] and r[k + "deadline"] and r[k + "deadline"] < today.isoformat():
+            new = next((x for x in rows if x[k + "notice"] == r[k + "superseded_by"] and x[k + "lot"] == r[k + "lot"]), None)
+            if new and new[k + "deadline"] and new[k + "deadline"] >= today.isoformat():
+                print(f"\nQ: is {r[k + 'notice']} {r[k + 'lot']} still open on {today}?")
+                print(f"- original alone: deadline {r[k + 'deadline']}, looks closed  [{r[k + 'cite_deadline']}]")
+                print(f"- superseded by {new[k + 'notice']}: deadline {new[k + 'deadline']}, open  [{new[k + 'cite_deadline']}]")
+                return
+
+
 def main() -> None:
     folder = sys.argv[1]
     today = date.fromisoformat(sys.argv[2]) if len(sys.argv) > 2 else date.today()
@@ -103,7 +117,10 @@ def main() -> None:
         data_access_collection=DataAccessCollection(folders={folder}),
         plugin_collector=PluginCollector.enabled_feature_groups({EformsLotsReader}),
     )
-    print(f"mloda run_all -> {table.num_rows} lots, {len(table.column_names)} columns")
+    sup = pc.sum(pc.cast(pc.is_valid(table.column(f"{TENDER_LOTS}~superseded_by")), pa.int64())).as_py()
+    print(f"mloda run_all -> {table.num_rows} lot rows, {len(table.column_names)} columns; "
+          f"{sup} superseded by a correction (BT-758), {table.num_rows - sup} current")
+    show_correction(table, today)
     for cpv, nuts, label in [("45", "DE2", "construction work, Bavaria"), ("", "DE", "any trade, a place of performance in Germany")]:
         hits = open_lots(table, today, cpv, nuts, 30)
         print(f"\nQ: open lots ({label}), deadline within 30 days of {today}: {hits.num_rows}")

@@ -74,3 +74,16 @@ def test_change_notice_supersedes_exactly_the_notice_it_names(tmp_path):
     assert old and all(r["tender_lots~superseded_by"] == "800157-2026" for r in old)
     others = [r for r in rows if r["tender_lots~notice"] != "692407-2026"]
     assert all(r["tender_lots~superseded_by"] is None for r in others)
+
+
+def test_one_run_loads_originals_and_applies_corrections(tmp_path):
+    # data/originals/ is read in the same run_all; the replaced original's lots drop out of open_lots
+    d = _dossier(tmp_path)
+    shutil.copy(ROOT / "data" / "xml" / "800275-2026.xml", d / "xml")
+    (d / "originals").mkdir()
+    shutil.copy(ROOT / "data" / "originals" / "763684-2026.xml", d / "originals")
+    t = _run(d)
+    old = [r for r in t.to_pylist() if r["tender_lots~notice"] == "763684-2026"]
+    assert old and all(r["tender_lots~superseded_by"] == "800275-2026" for r in old)
+    hits = m.open_lots(t, m.date(2026, 11, 25), "", "", 30).column("tender_lots~notice").to_pylist()
+    assert "763684-2026" not in hits and "800275-2026" in hits

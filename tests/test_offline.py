@@ -63,7 +63,7 @@ def test_checker_passes_the_fixture_and_fails_on_a_missing_citation():
     rows, refused = eforms_lots.read_folder(FIX / "xml", FIX / "fields.json", FIX / "originals")
     assert not refused
     ok, problems = check_citations.check(rows)
-    assert ok == 6 and problems == []  # 2 notices x (date, time, value)
+    assert ok == 14 and problems == []  # 2 notices x (title, cpv, region, country, date, time, value)
     rows[0]["cite_value"] = None  # keep the value, drop its citation
     _, problems = check_citations.check(rows)
     assert problems == [f"MISSING CITATION {rows[0]['notice']} LOT-0001 value"]
@@ -72,7 +72,7 @@ def test_checker_passes_the_fixture_and_fails_on_a_missing_citation():
 def test_checker_cli_passes_on_the_fixture():
     run = subprocess.run([sys.executable, "-I", str(ROOT / "src" / "check_citations.py"), str(FIX)],
                          capture_output=True, text=True, check=False)
-    assert run.returncode == 0 and "6 ok, 0 problems" in run.stdout
+    assert run.returncode == 0 and "14 ok, 0 problems" in run.stdout
 
 
 # --- only the newest notice is fetched; its history is found, not assumed ---------------------
@@ -114,7 +114,7 @@ def test_history_outside_the_fetch_is_found_and_the_newest_notice_answers(tmp_pa
     c_rows = [r for r in rows if r["notice"] == "C"]
     assert c_rows[0]["_path"].endswith("/xml/C.xml")  # the citation resolves against C's own XML
     ok, problems = check_citations.check(c_rows)
-    assert ok == 3 and problems == []
+    assert ok == 7 and problems == []
 
     # fetch again: same links, same answer
     again = resolve_changes.resolve_chains(data, lookup)
@@ -139,3 +139,17 @@ def test_a_missing_predecessor_is_reported_not_guessed(tmp_path):
         plugin_collector=m.PluginCollector.enabled_feature_groups({m.EformsLotsReader}),
     )
     assert t.column(K + "version_status").to_pylist() == ["unresolved"]
+
+
+def test_xml_entity_tricks_are_refused_not_expanded(tmp_path):
+    import shutil
+
+    import pytest
+
+    data = tmp_path / "data"
+    shutil.copytree(FIX, data)
+    (data / "xml" / "BOMB.xml").write_text(
+        '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "aaaaaaaaaa"><!ENTITY b "&a;&a;&a;&a;&a;">]>'
+        '<ContractNotice xmlns="urn:oasis:names:specification:ubl:schema:xsd:ContractNotice-2">&b;</ContractNotice>')
+    with pytest.raises(Exception, match="BOMB.xml"):
+        _answer(data)

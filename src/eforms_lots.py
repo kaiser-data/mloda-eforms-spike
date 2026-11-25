@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import xml.etree.ElementTree as ET  # nosec B405 - TED notices; a real plugin would use defusedxml
 from pathlib import Path
+
+import defusedxml.ElementTree as ET  # no entity expansion, no external DTDs: notices are untrusted input
+from defusedxml import DefusedXmlException
 
 NS = {
     "cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
@@ -34,7 +36,7 @@ COLUMNS = [
     "notice", "lot", "title", "deadline", "deadline_time", "request_deadline", "request_deadline_time",
     "cpv", "nuts", "locations", "location_conflict", "value", "currency", "value_scope",
     "procedure_id", "issue_date", "is_change_notice", "superseded_by", "version_status",
-    "cite_deadline", "cite_deadline_time", "cite_request_deadline", "cite_request_deadline_time", "cite_value",
+    "cite_title", "cite_cpv", "cite_nuts", "cite_country", "cite_deadline", "cite_deadline_time", "cite_request_deadline", "cite_request_deadline_time", "cite_value",
     "sdk_version", "file_sha256",
 ]
 
@@ -77,7 +79,7 @@ def read_notice(path: Path, xpaths: dict[str, str]) -> list[dict]:
     raw = path.read_bytes()
     try:
         root = ET.fromstring(raw)
-    except ET.ParseError as e:
+    except (ET.ParseError, DefusedXmlException) as e:
         raise NotANotice(f"{path.name}: not XML ({e})") from e
     if not root.tag.startswith("{urn:oasis:names:specification:ubl:schema:xsd:"):
         raise NotANotice(f"{path.name}: root {root.tag} is not a UBL/eForms notice")
@@ -157,6 +159,11 @@ def read_notice(path: Path, xpaths: dict[str, str]) -> list[dict]:
                 f"{notice} {lot_id} BT-131(d)-Lot @ {lot_path}"
                 f"{xpaths['BT-131(d)-Lot'].removeprefix(LOT_PREFIX)}" if dl else None
             ),
+            # a title can be given in several languages; the row uses the first, so the citation names it
+            "cite_title": (cite("BT-21-Lot", txt("BT-21-Lot")) or "") + "[1]" if txt("BT-21-Lot") else None,
+            "cite_cpv": cite("BT-262-Lot", got["BT-262-Lot"] and "y"),
+            "cite_nuts": cite("BT-5071-Lot", got["BT-5071-Lot"] and "y"),
+            "cite_country": cite("BT-5141-Lot", got["BT-5141-Lot"] and "y"),
             "cite_deadline_time": cite("BT-131(t)-Lot", dl_t),
             "cite_request_deadline": cite("BT-1311(d)-Lot", rq),
             "cite_request_deadline_time": cite("BT-1311(t)-Lot", rq_t),

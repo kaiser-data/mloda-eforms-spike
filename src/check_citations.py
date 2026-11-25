@@ -12,8 +12,21 @@ from lxml import etree
 sys.path.insert(0, str(Path(__file__).parent))
 import eforms_lots as e
 
+SAFE = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False)  # untrusted input
+
 # field -> (its citation column, how the cited text must relate to the row)
+def _countries(r: dict) -> str:
+    return ";".join(c for pair in (r["locations"] or "").split(";") for c in [pair.partition(":")[2]] if c)
+
+
+# field -> (its citation column, how the cited text must relate to the row). Single-valued fields must
+# select exactly one element; list fields (CPV, region, country) must select exactly the listed values.
+LISTS = {"cpv", "nuts", "country"}
 CHECKS = {
+    "title": ("cite_title", lambda r, v: v == r["title"]),
+    "cpv": ("cite_cpv", lambda r, v: v == r["cpv"]),
+    "nuts": ("cite_nuts", lambda r, v: v == r["nuts"]),
+    "country": ("cite_country", lambda r, v: v == _countries(r)),
     "deadline": ("cite_deadline", lambda r, v: v[:10] == r["deadline"]),
     "deadline_time": ("cite_deadline_time", lambda r, v: v == r["deadline_time"]),
     "request_deadline": ("cite_request_deadline", lambda r, v: v[:10] == r["request_deadline"]),
@@ -27,13 +40,17 @@ def check(rows: list[dict]) -> tuple[int, list[str]]:
     ok, problems = 0, []
     for r in rows:
         for field, (col, same) in CHECKS.items():
-            if r[field] is None:
+            present = _countries(r) if field == "country" else r[field]
+            if not present:
                 continue  # a genuinely absent optional value needs no citation
             if not r[col]:
                 problems.append(f"MISSING CITATION {r['notice']} {r['lot']} {field}")
                 continue
-            got = etree.parse(r["_path"]).xpath(r[col].split(" @ ")[1], namespaces=e.NS)
-            val = got[0].text.strip() if len(got) == 1 else None  # exactly one element
+            got = etree.parse(r["_path"], SAFE).xpath(r[col].split(" @ ")[1], namespaces=e.NS)
+            if field in LISTS:
+                val = ";".join(x.text.strip() for x in got if x.text and x.text.strip()) or None
+            else:
+                val = got[0].text.strip() if len(got) == 1 else None  # exactly one element
             if val is not None and same(r, val):
                 ok += 1
             else:

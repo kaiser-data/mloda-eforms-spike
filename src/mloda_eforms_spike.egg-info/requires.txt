@@ -1,0 +1,7 @@
+mloda==0.22.0
+pyarrow
+lxml
+defusedxml
+
+[test]
+pytest

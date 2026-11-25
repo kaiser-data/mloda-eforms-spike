@@ -12,8 +12,9 @@ import json
 import sys
 import time
 import urllib.request
-import xml.etree.ElementTree as ET
 from pathlib import Path
+
+import defusedxml.ElementTree as ET
 
 API = "https://api.ted.europa.eu/v3/notices/search"
 NS = {
@@ -64,7 +65,7 @@ def resolve(data: Path) -> list[dict]:
 
 def _identity(raw: bytes) -> tuple[str | None, str | None, str | None]:
     """(own key = BT-701 + "-" + version, BT-758 it replaces, procedure id) of one notice."""
-    root = ET.fromstring(raw)  # nosec B314 - notices from TED or a local archive
+    root = ET.fromstring(raw)
     nid = (root.findtext("cbc:ID[@schemeName='notice-id']", default="", namespaces=NS) or "").strip()
     ver = (root.findtext("cbc:VersionID", default="", namespaces=NS) or "").strip()
     rep = (root.findtext(".//efbc:ChangedNoticeIdentifier", default="", namespaces=NS) or "").strip()

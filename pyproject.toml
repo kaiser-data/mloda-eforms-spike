@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mloda-eforms-spike"
+version = "0.1.0"
+description = "TED eForms tender lots with field-level citations on mloda (proposal spike)"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+dependencies = ["mloda==0.22.0", "pyarrow", "lxml", "defusedxml"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["eforms_lots", "eforms_mloda", "check_citations", "resolve_changes", "compare_changes", "fetch_data"]
+
+[tool.ruff]
+line-length = 120

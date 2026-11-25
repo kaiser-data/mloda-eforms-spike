@@ -1,7 +1,8 @@
-"""Re-resolve every citation the reader emits with lxml (an independent XPath engine).
+"""Re-resolve every citation the reader emits with lxml (an independent XPath engine), and check coverage.
 
-Reads the same documents as the mloda run (data/xml plus data/originals), applies the same manifest
-check, and fails on an empty or incomplete snapshot or on any mismatch.
+Reads the same documents as the mloda run (xml/ plus originals/), applies the same manifest check, and
+fails on an empty or incomplete snapshot, on a populated field without its citation, or on any mismatch.
+Usage: python -I src/check_citations.py DATA_DIR
 """
 import sys
 from pathlib import Path
@@ -11,36 +12,53 @@ from lxml import etree
 sys.path.insert(0, str(Path(__file__).parent))
 import eforms_lots as e
 
-folder = Path(sys.argv[1])
-missing = e.missing_from_manifest(folder)
-if missing:
-    sys.exit(f"refused: {len(missing)} file(s) not downloaded or not in the manifest, e.g. {missing[0]}")
-rows, refused = e.read_folder(folder / "xml", folder / "fields.json", folder / "originals")
-if refused:
-    sys.exit(f"refused: {refused[0]}")
-if not rows:
-    sys.exit("refused: empty snapshot, nothing to check")
+# field -> (its citation column, how the cited text must relate to the row)
+CHECKS = {
+    "deadline": ("cite_deadline", lambda r, v: v[:10] == r["deadline"]),
+    "deadline_time": ("cite_deadline_time", lambda r, v: v == r["deadline_time"]),
+    "request_deadline": ("cite_request_deadline", lambda r, v: v[:10] == r["request_deadline"]),
+    "request_deadline_time": ("cite_request_deadline_time", lambda r, v: v == r["request_deadline_time"]),
+    "value": ("cite_value", lambda r, v: float(v) == r["value"]),
+}
 
-# (citation column, how the cited text must relate to the row)
-CHECKS = [
-    ("cite_deadline", lambda r, v: v[:10] == r["deadline"]),
-    ("cite_deadline_time", lambda r, v: v == r["deadline_time"]),
-    ("cite_request_deadline", lambda r, v: v[:10] == r["request_deadline"]),
-    ("cite_request_deadline_time", lambda r, v: v == r["request_deadline_time"]),
-    ("cite_value", lambda r, v: float(v) == r["value"]),
-]
-ok = bad = 0
-for r in rows:
-    for col, same in CHECKS:
-        if r[col] is None:
-            continue
-        got = etree.parse(r["_path"]).xpath(r[col].split(" @ ")[1], namespaces=e.NS)  # the row's own file
-        val = got[0].text.strip() if len(got) == 1 else None  # the XPath must select exactly one element
-        match = val is not None and same(r, val)
-        ok += match
-        bad += not match
-        if not match:
-            print("MISMATCH", r[col], val)
-print(f"citations re-resolved: {ok} ok, {bad} mismatched, across {len(rows)} lots / {len({r['notice'] for r in rows})} notices")
-if bad:
-    sys.exit(1)
+
+def check(rows: list[dict]) -> tuple[int, list[str]]:
+    """Returns (citations ok, problems). A populated field must have a citation that re-resolves to it."""
+    ok, problems = 0, []
+    for r in rows:
+        for field, (col, same) in CHECKS.items():
+            if r[field] is None:
+                continue  # a genuinely absent optional value needs no citation
+            if not r[col]:
+                problems.append(f"MISSING CITATION {r['notice']} {r['lot']} {field}")
+                continue
+            got = etree.parse(r["_path"]).xpath(r[col].split(" @ ")[1], namespaces=e.NS)
+            val = got[0].text.strip() if len(got) == 1 else None  # exactly one element
+            if val is not None and same(r, val):
+                ok += 1
+            else:
+                problems.append(f"MISMATCH {r[col]} -> {val!r}")
+    return ok, problems
+
+
+def main() -> None:
+    folder = Path(sys.argv[1])
+    missing = e.missing_from_manifest(folder)
+    if missing:
+        sys.exit(f"refused: {len(missing)} file(s) not downloaded or not in the manifest, e.g. {missing[0]}")
+    rows, refused = e.read_folder(folder / "xml", folder / "fields.json", folder / "originals")
+    if refused:
+        sys.exit(f"refused: {refused[0]}")
+    if not rows:
+        sys.exit("refused: empty snapshot, nothing to check")
+    ok, problems = check(rows)
+    for p in problems:
+        print(p)
+    print(f"citations re-resolved: {ok} ok, {len(problems)} problems, "
+          f"across {len(rows)} lots / {len({r['notice'] for r in rows})} notices")
+    if problems:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

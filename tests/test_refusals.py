@@ -10,6 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 import eforms_mloda as m
 
+# real TED snapshot (integration): fetch it first with python3 -I src/fetch_data.py data
+pytestmark = pytest.mark.skipif(not (ROOT / "data" / "xml").is_dir(), reason="needs the TED snapshot in data/")
+
 SAMPLE = ["800869-2026.xml", "800306-2026.xml"]
 CET = timezone(timedelta(hours=1))
 NOON = datetime(2026, 11, 25, 12, 0, tzinfo=CET)

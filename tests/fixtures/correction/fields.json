@@ -1,0 +1,62 @@
+{
+ "sdkVersion": "eforms-sdk-1.13.0",
+ "_note": "Subset of eForms SDK fields.json (OP-TED/eForms-SDK, EUPL-1.2): only the fields this spike reads.",
+ "fields": [
+  {
+   "id": "BT-04-notice",
+   "xpathAbsolute": "/*/cbc:ContractFolderID"
+  },
+  {
+   "id": "BT-05(a)-notice",
+   "xpathAbsolute": "/*/cbc:IssueDate"
+  },
+  {
+   "id": "BT-131(d)-Lot",
+   "xpathAbsolute": "/*/cac:ProcurementProjectLot[cbc:ID/@schemeName='Lot']/cac:TenderingProcess/cac:TenderSubmissionDeadlinePeriod/cbc:EndDate"
+  },
+  {
+   "id": "BT-131(t)-Lot",
+   "xpathAbsolute": "/*/cac:ProcurementProjectLot[cbc:ID/@schemeName='Lot']/cac:TenderingProcess/cac:TenderSubmissionDeadlinePeriod/cbc:EndTime"
+  },
+  {
+   "id": "BT-1311(d)-Lot",
+   "xpathAbsolute": "/*/cac:ProcurementProjectLot[cbc:ID/@schemeName='Lot']/cac:TenderingProcess/cac:ParticipationRequestReceptionPeriod/cbc:EndDate"
+  },
+  {
+   "id": "BT-1311(t)-Lot",
+   "xpathAbsolute": "/*/cac:ProcurementProjectLot[cbc:ID/@schemeName='Lot']/cac:TenderingProcess/cac:ParticipationRequestReceptionPeriod/cbc:EndTime"
+  },
+  {
+   "id": "BT-21-Lot",
+   "xpathAbsolute": "/*/cac:ProcurementProjectLot[cbc:ID/@schemeName='Lot']/cac:ProcurementProject/cbc:Name"
+  },
+  {
+   "id": "BT-262-Lot",
+   "xpathAbsolute": "/*/cac:ProcurementProjectLot[cbc:ID/@schemeName='Lot']/cac:ProcurementProject/cac:MainCommodityClassification/cbc:ItemClassificationCode"
+  },
+  {
+   "id": "BT-27-Lot",
+   "xpathAbsolute": "/*/cac:ProcurementProjectLot[cbc:ID/@schemeName='Lot']/cac:ProcurementProject/cac:RequestedTenderTotal/cbc:EstimatedOverallContractAmount"
+  },
+  {
+   "id": "BT-27-Procedure",
+   "xpathAbsolute": "/*/cac:ProcurementProject/cac:RequestedTenderTotal/cbc:EstimatedOverallContractAmount"
+  },
+  {
+   "id": "BT-5071-Lot",
+   "xpathAbsolute": "/*/cac:ProcurementProjectLot[cbc:ID/@schemeName='Lot']/cac:ProcurementProject/cac:RealizedLocation/cac:Address/cbc:CountrySubentityCode"
+  },
+  {
+   "id": "BT-5141-Lot",
+   "xpathAbsolute": "/*/cac:ProcurementProjectLot[cbc:ID/@schemeName='Lot']/cac:ProcurementProject/cac:RealizedLocation/cac:Address/cac:Country/cbc:IdentificationCode"
+  },
+  {
+   "id": "BT-757-notice",
+   "xpathAbsolute": "/*/cbc:VersionID"
+  },
+  {
+   "id": "BT-758-notice",
+   "xpathAbsolute": "/*/ext:UBLExtensions/ext:UBLExtension/ext:ExtensionContent/efext:EformsExtension/efac:Changes/efbc:ChangedNoticeIdentifier"
+  }
+ ]
+}

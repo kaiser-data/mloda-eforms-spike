@@ -123,7 +123,12 @@ def open_lots(t: pa.Table, now: datetime, cpv: str, nuts: str, days: int, stage:
         act = next_action(g, now, days, stage)
         if act:
             out.append({**r, k + "action": act[0], k + "until": act[1], k + "until_precision": act[2]})
-    return pa.Table.from_pylist(out) if out else t.slice(0, 0)
+    if out:
+        return pa.Table.from_pylist(out)
+    empty = t.slice(0, 0)  # same columns and types as a non-empty answer
+    for c in ("action", "until", "until_precision"):
+        empty = empty.append_column(k + c, pa.array([], pa.string()))
+    return empty
 
 
 def stated_total(t: pa.Table) -> str:

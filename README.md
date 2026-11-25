@@ -4,6 +4,25 @@ This is a proof of concept for the November mloda proposal. It reads real EU ten
 in eForms XML, into an mloda feature, `tender_lots`. Each value records the notice, lot, eForms
 business term and XPath it came from.
 
+## See it in one command (offline, no TED download)
+
+A synthetic original says the tender closed on 20 Oct; its correction (BT-758) moves the deadline to 27 Nov, 11:00 CET. Asked at 25 Nov, 11:01, the answer comes from the corrected notice, with the XPath of each date and value:
+
+```sh
+pip install "mloda==0.22.0" pyarrow lxml pytest
+python -I src/eforms_mloda.py tests/fixtures/correction 2026-11-25T11:01:00+01:00
+python -m pytest -q tests          # offline tests run; the real-TED tests skip until data/ is fetched
+```
+
+```
+- original alone: deadline 2026-10-20, looks closed  [S-ORIGINAL LOT-0001 BT-131(d)-Lot @ ...]
+- submit tender until 2026-11-27T11:00:00+01:00: 'Synthetic roof repair'
+    deadline [S-CORRECTION LOT-0001 BT-131(t)-Lot @ .../cac:TenderSubmissionDeadlinePeriod/cbc:EndTime]
+    value: 120,000.00 EUR [S-CORRECTION LOT-0001 BT-27-Lot @ ...]
+```
+
+The fixture is invented (no real buyer, no personal data); `fields.json` there is a subset of the eForms SDK (EUPL-1.2). The same run on 99 real TED notices is below. The real-data example is `686722-2026` (closed 20 Oct) corrected by `801029-2026` (27 Nov, 11:00).
+
 ## What it shows (run on 25 Nov 2026)
 
 | Check | Result |
@@ -12,7 +31,7 @@ business term and XPath it came from.
 | Through mloda | `mloda.run_all(Feature("tender_lots"))` reads the 99-notice sample plus the 34 replaced originals: **225 lot rows in 26 columns**, of which 164 are `current_in_snapshot` (the 99 sample notices) and 61 `superseded`. The reader is a `SourceFeatureGroup`, the same pattern as German Ledger. |
 | Schema-driven | XPaths are read from the official eForms SDK `fields.json` (1.13.0). The notices use SDK 1.13 and 1.14, and both parse. |
 | Citations | All **480 of 480** citations in that run re-resolve to the same text when the XPath is evaluated with lxml on the file each row was read from: tender deadline date and time (BT-131), request-to-participate date and time (BT-1311) and estimated value (BT-27). Title, CPV, region and country carry no citation yet. The checker applies the same manifest check as the reader and fails on an empty snapshot or any mismatch. |
-| Tests | 22 tests through `mloda.run_all` and the checker: exact closing times (three lots that closed at 09:00/11:00 on 25 Nov are in at 08:59 and gone at 11:01); 16 request-to-participate lots found and labelled; a country/region contradiction flagged and kept out of the Germany count; a query time without a time zone refused; a fork that is later corrected again stays `conflict`; the checker fails on an empty or incomplete snapshot; totals keep cents; plus refusals (HTTP 429 page, notice without lots or identity, missing or unlisted file, identity conflict, mixed or missing currency) and version handling (duplicate counted once, superseded original excluded, A → B → C resolves to C). |
+| Tests | 27 tests: 5 offline on the synthetic pair (in CI: the correction changes the answer, an empty answer keeps its columns, the checker requires a citation for every populated deadline, time and value) and 22 on the TED snapshot through `mloda.run_all` and the checker: exact closing times (three lots that closed at 09:00/11:00 on 25 Nov are in at 08:59 and gone at 11:01); 16 request-to-participate lots found and labelled; a country/region contradiction flagged and kept out of the Germany count; a query time without a time zone refused; a fork that is later corrected again stays `conflict`; the checker fails on an empty or incomplete snapshot; totals keep cents; plus refusals (HTTP 429 page, notice without lots or identity, missing or unlisted file, identity conflict, mixed or missing currency) and version handling (duplicate counted once, superseded original excluded, A → B → C resolves to C). |
 | What a supplier can do | Query instant **2026-11-25T11:01:00+01:00**, 30 days, a place of performance in Germany (an address whose region and country agree): **102 lots, 86 "submit tender" and 16 "request to participate"**, each with its deadline in local time and a citation. Stated values: **1,185,833.35 EUR on 11 of 86** tender lots and **48,324,280.64 EUR on 7 of 16** request lots; missing values are never counted as 0. Construction in Bavaria: 6 lots, none states a value. `800917-2026` (addresses say Spain, regions say France, Germany and Ireland) is flagged and not counted as German. |
 | Change notices | 34 of 99 notices are change notices (BT-758). `src/resolve_changes.py` resolves **34 of 34** to the exact notice they replace through the TED search API (BT-758 = the changed notice's identifier plus its version). Version status comes from that link only: `superseded`, `current_in_snapshot` (nothing loaded replaces it), `unresolved` (a change notice whose original isn't loaded) or `conflict` (carried down later corrections). **10 lots in 7 notices look closed in the original but have a deadline after 25 Nov in the correction** (e.g. `686722-2026` 20 Oct → `801029-2026` 27 Nov). `src/compare_changes.py` compares date, time, request deadline, amount and currency: 20 of 34 corrections move a deadline date, 7 a deadline time, 1 a request deadline, 1 a value, 1 a title. |
 
@@ -42,7 +61,7 @@ python3 -I src/fetch_data.py data                                # again: now al
 - Deadlines without a time (date only) are kept and labelled "date only, no time given"; their exact cut-off is unknown.
 - Region codes and countries are compared per address; a lot whose only German address contradicts its country isn't counted as German. Title, CPV, region and country have no citation yet.
 - `resolve_changes.py` reads one page of 100 results per procedure (the largest here has 7) and doesn't follow originals' own predecessors yet.
-- Tests use the real TED snapshot (fetch first); small synthetic fixtures and CI are planned.
+- Offline CI covers the synthetic correction pair; the 99-notice TED snapshot stays a local integration check (fetch first).
 
 ## Not done yet (the 1–15 Dec plan)
 

@@ -151,3 +151,38 @@ def test_missing_download_from_manifest_is_refused(tmp_path):
     (d / "ids.txt").write_text(f"800869-2026\n800306-2026\n{B}\n800999-2026\n")
     with pytest.raises(Exception, match="not downloaded"):
         _run(d)
+
+
+def test_two_corrections_of_one_original_are_a_conflict_and_never_answer(tmp_path):
+    d = _pair(tmp_path)
+    raw = (ROOT / "data" / "xml" / f"{B}.xml").read_text(encoding="utf-8")
+    (d / "xml" / "B2-synthetic.xml").write_text(
+        raw.replace("9bcdb08c-aae7-41a4-96e7-f73bf14bc1d1", "00000000-0000-4000-8000-0000000000b2"), encoding="utf-8")
+    t = _run(d)
+    status = {r["tender_lots~notice"]: r["tender_lots~version_status"] for r in t.to_pylist()}
+    assert status[A] == status[B] == status["B2-synthetic"] == "conflict"
+    assert not {A, B, "B2-synthetic"} & set(_notices(t))
+
+
+def test_a_value_without_currency_is_refused_in_a_total(tmp_path):
+    t = _run(_dossier(tmp_path))
+    t = t.set_column(t.column_names.index("tender_lots~value"), "tender_lots~value", pa.array([100.0, 200.0]))
+    t = t.set_column(t.column_names.index("tender_lots~currency"), "tender_lots~currency", pa.array(["EUR", None]))
+    with pytest.raises(ValueError, match="no currency"):
+        m.stated_total(t)
+
+
+def test_a_file_not_in_the_manifest_is_refused(tmp_path):
+    d = _pair(tmp_path)
+    (d / "ids.txt").write_text(f"800869-2026\n800306-2026\n{B}\n")
+    shutil.copy(ROOT / "data" / "xml" / "800157-2026.xml", d / "xml" / "800888-2026.xml")
+    with pytest.raises(Exception, match="not in ids.txt"):
+        _run(d)
+
+
+def test_a_notice_without_lots_is_refused(tmp_path):
+    d = _dossier(tmp_path)
+    raw = (ROOT / "data" / "xml" / "800869-2026.xml").read_text(encoding="utf-8")
+    (d / "xml" / "nolots.xml").write_text(raw.replace('schemeName="Lot"', 'schemeName="Part"'), encoding="utf-8")
+    with pytest.raises(Exception, match="no procurement lots"):
+        _run(d)

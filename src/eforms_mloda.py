@@ -64,7 +64,7 @@ class EformsLotsReader(SourceFeatureGroup):
         folder = Path(str(match.access))
         missing = eforms_lots.missing_from_manifest(folder)
         if missing:  # refuse rather than answer from a partial download
-            raise ValueError(f"refused: {len(missing)} expected notice(s) not downloaded, e.g. {missing[0]}")
+            raise ValueError(f"refused: {len(missing)} file(s) not downloaded or not in the manifest, e.g. {missing[0]}")
         rows, refused = eforms_lots.read_folder(folder / "xml", folder / "fields.json", folder / "originals")
         if refused:  # refuse the whole run rather than answer from a partial or conflicting download
             raise ValueError(f"refused: {len(refused)} file(s), e.g. {refused[0]}")
@@ -78,7 +78,8 @@ def open_lots(t: pa.Table, today: date, cpv: str, nuts: str, days: int) -> pa.Ta
     mask = pc.and_(
         pc.and_(pc.greater_equal(deadline, today.isoformat()),
                 pc.less_equal(deadline, (today + timedelta(days=days)).isoformat())),
-        pc.is_null(col("superseded_by")),
+        # superseded and conflict rows never answer; unresolved = newest version known, so it stays
+        pc.invert(pc.is_in(col("version_status"), pa.array(["superseded", "conflict"]))),
     )
     if cpv:
         mask = pc.and_(mask, pc.match_substring_regex(col("cpv"), f"(^|;){cpv}"))
@@ -88,7 +89,10 @@ def open_lots(t: pa.Table, today: date, cpv: str, nuts: str, days: int) -> pa.Ta
 
 
 def stated_total(t: pa.Table) -> str:
-    cur = [c for c in t.column(f"{TENDER_LOTS}~currency").to_pylist() if c]
+    pairs = list(zip(t.column(f"{TENDER_LOTS}~value").to_pylist(), t.column(f"{TENDER_LOTS}~currency").to_pylist()))
+    if any(v is not None and not c for v, c in pairs):
+        raise ValueError("refused: a stated value has no currency")
+    cur = [c for v, c in pairs if v is not None]
     if len(set(cur)) > 1:
         raise ValueError(f"refused: mixed currencies {sorted(set(cur))}")
     vals = [v for v in t.column(f"{TENDER_LOTS}~value").to_pylist() if v is not None]

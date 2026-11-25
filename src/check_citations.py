@@ -21,10 +21,12 @@ for r in rows:
             continue
         xpath = cite.split(" @ ")[1]
         got = etree.parse(r["_path"]).xpath(xpath, namespaces=e.NS)  # the file this row was read from
-        val = got[0].text.strip() if got else None
+        val = got[0].text.strip() if len(got) == 1 else None  # the XPath must select exactly one element
         match = val is not None and (val[:10] == expect if isinstance(expect, str) else float(val) == expect)
         ok += match
         bad += not match
         if not match:
             print("MISMATCH", cite, val, expect)
 print(f"citations re-resolved: {ok} ok, {bad} mismatched, across {len(rows)} lots / {len({r['notice'] for r in rows})} notices")
+if bad:
+    sys.exit(1)

@@ -64,6 +64,10 @@ def read_notice(path: Path, xpaths: dict[str, str]) -> list[dict]:
         lot for lot in root.findall("cac:ProcurementProjectLot", NS)
         if (i := lot.find("cbc:ID", NS)) is not None and i.get("schemeName") == "Lot"
     ]
+    if not nid or not ver:
+        raise NotANotice(f"{path.name}: no notice identifier (BT-701) or version")
+    if not lot_els:
+        raise NotANotice(f"{path.name}: notice {nid} has no procurement lots")
     proc_value = meta["BT-27-Procedure"][0] if meta["BT-27-Procedure"] else None
     rows = []
     for idx, lot in enumerate(lot_els, start=1):
@@ -127,9 +131,11 @@ def mark_superseded(rows: list[dict]) -> None:
         if r["_replaces"]:
             claims.setdefault(r["_replaces"], set()).add(r["notice"])
     loaded = {r["_key"] for r in rows}
+    # two notices claiming the same original: the original and every claimant are in conflict
+    in_conflict = {n for by in claims.values() if len(by) > 1 for n in by}
     for r in rows:
         by = claims.get(r["_key"], set())
-        if len(by) > 1:
+        if len(by) > 1 or r["notice"] in in_conflict:
             r["version_status"] = "conflict"
         elif by:
             r["superseded_by"] = next(iter(by))
@@ -154,14 +160,18 @@ def latest(rows: list[dict], row: dict) -> dict:
 
 
 def missing_from_manifest(folder: Path) -> list[str]:
-    """Notices the manifests say should be there: ids.txt (the sample) and changes.json (originals)."""
+    """Files that break the manifests (ids.txt for the sample, changes.json for originals): missing or unlisted."""
     missing = []
     if (folder / "ids.txt").exists():
         ids = [i for i in (folder / "ids.txt").read_text().split() if i.strip()]
         missing += [f"xml/{i}.xml" for i in ids if not (folder / "xml" / f"{i}.xml").exists()]
+        missing += [f"xml/{p.name}: not in ids.txt" for p in (folder / "xml").glob("*.xml") if p.stem not in ids]
     if (folder / "changes.json").exists():
         reps = [c["replaces"] for c in json.loads((folder / "changes.json").read_text()) if c.get("replaces")]
         missing += [f"originals/{i}.xml" for i in reps if not (folder / "originals" / f"{i}.xml").exists()]
+        if (folder / "originals").is_dir():
+            missing += [f"originals/{p.name}: not in changes.json"
+                        for p in (folder / "originals").glob("*.xml") if p.stem not in reps]
     return missing
 
 

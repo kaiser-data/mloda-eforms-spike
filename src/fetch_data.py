@@ -5,6 +5,7 @@ them, but this repo doesn't need to keep copies.
 Usage: python3 -I src/fetch_data.py data
 """
 
+import json
 import sys
 import time
 import urllib.error
@@ -40,6 +41,16 @@ def main() -> None:
             time.sleep(1)
         print(f"\r{n}/{len(ids)}", end="", flush=True)
     print(f"\nfetched {len(ids)} notices into {data / 'xml'}")
+    changes = data / "changes.json"  # written by src/resolve_changes.py
+    if changes.exists():
+        (data / "originals").mkdir(exist_ok=True)
+        originals = [c["replaces"] for c in json.loads(changes.read_text()) if c["replaces"]]
+        for pub in originals:
+            out = data / "originals" / f"{pub}.xml"
+            if not out.exists():
+                out.write_bytes(get(NOTICE.format(pub)))
+                time.sleep(1)
+        print(f"fetched {len(originals)} replaced originals into {data / 'originals'}")
 
 
 if __name__ == "__main__":

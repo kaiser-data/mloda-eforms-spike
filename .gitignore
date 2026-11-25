@@ -6,3 +6,4 @@ __pycache__/
 data/xml/
 data/fields.json
 data/search.json
+data/originals/

@@ -62,3 +62,15 @@ def test_gives_no_total_when_no_lot_states_a_value(tmp_path):
     out = m.stated_total(t)
     assert out.startswith("no total")
     assert "0 " not in out.split(":")[0]
+
+
+def test_change_notice_supersedes_exactly_the_notice_it_names(tmp_path):
+    # real pair, resolved through BT-758: 692407-2026 is replaced by 800157-2026
+    d = _dossier(tmp_path)
+    shutil.copy(ROOT / "data" / "xml" / "800157-2026.xml", d / "xml")
+    shutil.copy(ROOT / "data" / "originals" / "692407-2026.xml", d / "xml")
+    rows = _run(d).to_pylist()
+    old = [r for r in rows if r["tender_lots~notice"] == "692407-2026"]
+    assert old and all(r["tender_lots~superseded_by"] == "800157-2026" for r in old)
+    others = [r for r in rows if r["tender_lots~notice"] != "692407-2026"]
+    assert all(r["tender_lots~superseded_by"] is None for r in others)

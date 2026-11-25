@@ -56,6 +56,9 @@ def read_notice(path: Path, xpaths: dict[str, str]) -> list[dict]:
     notice = path.stem
     meta = {fid: _find(root, xpaths[fid], "/*/") for fid in NOTICE_FIELDS}
     sdk = (root.findtext("cbc:CustomizationID", default="", namespaces=NS) or "").strip()
+    # BT-701 notice identifier + version: what a later change notice names in its BT-758.
+    nid = (root.findtext("cbc:ID[@schemeName='notice-id']", default="", namespaces=NS) or "").strip()
+    ver = (root.findtext("cbc:VersionID", default="", namespaces=NS) or "").strip()
 
     lot_els = [
         lot for lot in root.findall("cac:ProcurementProjectLot", NS)
@@ -101,21 +104,22 @@ def read_notice(path: Path, xpaths: dict[str, str]) -> list[dict]:
             "cite_value": cite_v,
             "sdk_version": sdk,
             "file_sha256": sha,
+            "_key": f"{nid}-{ver}" if nid and ver else None,
+            "_replaces": meta["BT-758-notice"][0].text.strip() if meta["BT-758-notice"] else None,
         })
     return rows
 
 
 def mark_superseded(rows: list[dict]) -> None:
-    """Within one procedure (BT-04), lots of older notices are superseded by the newest notice."""
-    newest: dict[str, tuple[str, str]] = {}
+    """A notice is superseded only when another notice in the folder names it in BT-758.
+
+    BT-758 is the changed notice's identifier (BT-701) plus "-" and its version, so the
+    link is exact. No guessing from dates or procedure ids.
+    """
+    replaced_by = {r["_replaces"]: r["notice"] for r in rows if r["_replaces"]}
     for r in rows:
-        pid = r["procedure_id"]
-        if pid and (pid not in newest or (r["issue_date"] or "", r["notice"]) > newest[pid]):
-            newest[pid] = (r["issue_date"] or "", r["notice"])
-    for r in rows:
-        pid = r["procedure_id"]
-        if pid and newest[pid][1] != r["notice"]:
-            r["superseded_by"] = newest[pid][1]
+        if r["_key"] in replaced_by:
+            r["superseded_by"] = replaced_by[r["_key"]]
 
 
 def read_folder(folder: Path, fields_json: Path) -> tuple[list[dict], list[str]]:

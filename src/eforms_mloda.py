@@ -104,7 +104,7 @@ def main() -> None:
         plugin_collector=PluginCollector.enabled_feature_groups({EformsLotsReader}),
     )
     print(f"mloda run_all -> {table.num_rows} lots, {len(table.column_names)} columns")
-    for cpv, nuts, label in [("45", "DE2", "construction work, Bavaria"), ("", "", "any trade, all of Germany")]:
+    for cpv, nuts, label in [("45", "DE2", "construction work, Bavaria"), ("", "DE", "any trade, a place of performance in Germany")]:
         hits = open_lots(table, today, cpv, nuts, 30)
         print(f"\nQ: open lots ({label}), deadline within 30 days of {today}: {hits.num_rows}")
         for r in hits.sort_by(f"{TENDER_LOTS}~deadline").slice(0, 4).to_pylist():
